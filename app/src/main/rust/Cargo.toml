@@ -1,0 +1,11 @@
+[package]
+name = "ritmo_rust"
+version = "0.1.0"
+edition = "2021"
+description = "Núcleo nativo en Rust para el reproductor de música Ritmo"
+
+[lib]
+name = "ritmo_rust"
+crate-type = ["staticlib", "cdylib"]
+
+[dependencies]

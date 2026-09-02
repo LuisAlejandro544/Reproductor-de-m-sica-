@@ -1,0 +1,124 @@
+name: Compilar APK Debug (Manual)
+
+# Este flujo se activa ÚNICAMENTE de forma manual desde la pestaña 'Actions' de GitHub.
+# No se ejecuta automáticamente por push, pull request ni commits.
+# No utiliza caché para asegurar una compilación 100% limpia de todo el código (Kotlin, C++ y Rust).
+on:
+  workflow_dispatch:
+    inputs:
+      build_reason:
+        description: 'Motivo de la compilación manual'
+        required: false
+        default: 'Compilación limpia sin caché con módulos nativos C++ y Rust'
+
+# Cancelar ejecuciones previas del mismo workflow si se lanzara otra manualmente
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-apk:
+    name: Compilar APK Debug con C++ y Rust
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Descargar el código fuente completo del repositorio
+      - name: Descargar código fuente del repositorio
+        uses: actions/checkout@v4
+
+      # 2. Configurar Java JDK 17 (Sin caché para respetar la directiva)
+      - name: Configurar Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # 3. Configurar Android SDK
+      - name: Configurar Android SDK
+        uses: android-actions/setup-android@v3
+
+      # 4. Instalar NDK y CMake para compilar el motor C++ (Google Oboe y código nativo)
+      - name: Instalar dependencias nativas C++ (Android NDK r26b y CMake)
+        run: |
+          echo "=== Aceptando licencias del Android SDK ==="
+          yes | sdkmanager --licenses || true
+          echo "=== Instalando NDK 26.1.10909125 y CMake 3.22.1 ==="
+          sdkmanager "ndk;26.1.10909125" "cmake;3.22.1"
+
+      # 5. Configurar el compilador de Rust (cargo / rustc) para compilar el crate ritmo_rust
+      - name: Configurar compilador de Rust
+        run: |
+          echo "=== Configurando Toolchain de Rust ==="
+          rustup update stable
+          rustup default stable
+          rustc --version
+          cargo --version
+
+      # 6. Generación del almacén de claves (Keystore) y firma dentro del Action
+      - name: Generar almacén de claves y firma de la app (debug.keystore)
+        run: |
+          echo "=== Configurando almacén de claves para la firma debug ==="
+          if [ -f "debug.keystore.base64" ]; then
+            echo "Decodificando debug.keystore existente desde base64..."
+            base64 -d debug.keystore.base64 > debug.keystore
+          fi
+          if [ ! -f "debug.keystore" ]; then
+            echo "Generando almacén de claves debug.keystore con keytool..."
+            keytool -genkey -v \
+              -keystore debug.keystore \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+          fi
+          echo "Almacén de claves listo:"
+          ls -lh debug.keystore
+
+      # 7. Asignar permisos de ejecución al script Gradle
+      - name: Asignar permisos de ejecución a gradlew
+        run: chmod +x gradlew
+
+      # 8. Compilación limpia completa del APK Debug
+      # Compila:
+      # - Crate en Rust (tarea compileRust conectada a preBuild)
+      # - Módulo en C++ mediante CMake y Android NDK con Google Oboe
+      # - Código Kotlin y Jetpack Compose
+      # - Firma del APK con debug.keystore
+      # Sin caché de Gradle ni caché de compilación
+      - name: Compilar APK Debug (Rust + C++ + Kotlin)
+        run: |
+          echo "=== Iniciando compilación completa sin caché ==="
+          ./gradlew :app:assembleDebug \
+            --no-build-cache \
+            --no-daemon \
+            --stacktrace
+
+      # 9. Verificar que el APK fue generado y firmado correctamente
+      - name: Verificar firma del APK generado
+        run: |
+          echo "=== Verificando APK y firma generada ==="
+          APK_FILE=$(find app/build/outputs/apk/debug -name "*.apk" | head -n 1)
+          if [ -z "$APK_FILE" ]; then
+            echo "Error crítico: No se encontró el APK generado en app/build/outputs/apk/debug/"
+            exit 1
+          fi
+          echo "APK localizado en: $APK_FILE"
+          ls -lh "$APK_FILE"
+          
+          # Verificar la firma del APK utilizando las build-tools de Android
+          BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -n 1)
+          echo "Utilizando apksigner de: $BUILD_TOOLS_DIR"
+          "$BUILD_TOOLS_DIR/apksigner" verify --verbose "$APK_FILE" || jarsigner -verify -verbose "$APK_FILE"
+          echo "=== APK firmado y verificado exitosamente ==="
+
+      # 10. Subir el APK como artefacto descargable en GitHub
+      - name: Subir APK Debug firmado como artefacto descargable
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ritmo-Debug-APK
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14

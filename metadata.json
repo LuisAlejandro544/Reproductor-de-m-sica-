@@ -1,0 +1,6 @@
+{
+  "name": "Ritmo",
+  "description": "Reproductor de música local con importación manual, mini reproductor y reproductor completo.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
