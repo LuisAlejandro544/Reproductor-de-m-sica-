@@ -30,6 +30,11 @@ abstract class AppDatabase : RoomDatabase() {
                     "ritmo_music.db"
                 ).fallbackToDestructiveMigration().build()
                 INSTANCE = instance
+                try {
+                    com.pluto.plugins.rooms.db.PlutoRoomsDBWatcher.watch("ritmo_music.db", AppDatabase::class.java)
+                } catch (_: Throwable) {
+                    // Ignorado si Pluto no está activo en modo release o pruebas unitarias
+                }
                 instance
             }
         }

@@ -1,6 +1,6 @@
 package com.example.ui.components
 
-import android.widget.Toast
+import com.example.util.showSafeToast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -105,7 +105,7 @@ fun RoomDatabaseInspectorModal(
 
     var queryResult by remember { mutableStateOf<QueryResult?>(null) }
     var isLoading by remember { mutableStateOf(false) }
-    var customSqlQuery by remember { mutableStateOf("SELECT id, title, artist, duration, lyrics FROM tracks LIMIT 50") }
+    var customSqlQuery by remember { mutableStateOf("SELECT id, title, artist, album, durationMs, lyrics FROM tracks LIMIT 50") }
     var searchQuery by remember { mutableStateOf("") }
 
     // Cargar datos de la tabla activa
@@ -115,9 +115,16 @@ fun RoomDatabaseInspectorModal(
             val (loadedStats, result) = withContext(Dispatchers.IO) {
                 val s = RoomDatabaseInspector.getDatabaseStats(context)
                 val r = when (selectedTabIndex) {
-                    0 -> RoomDatabaseInspector.executeQuery(context, "SELECT id, title, artist, duration, lyrics, artworkPath, format FROM tracks ORDER BY id DESC LIMIT 100")
+                    0 -> RoomDatabaseInspector.executeQuery(context, "SELECT id, title, artist, album, durationMs, filePath, artworkPath, lyrics FROM tracks ORDER BY id DESC LIMIT 100")
                     1 -> RoomDatabaseInspector.executeQuery(context, "SELECT id, name, description, createdAt FROM playlists ORDER BY id DESC")
-                    2 -> RoomDatabaseInspector.executeQuery(context, "SELECT playlistId, trackId FROM playlist_track_cross_ref LIMIT 150")
+                    2 -> {
+                        val crossResult = RoomDatabaseInspector.executeQuery(context, "SELECT playlistId, trackId, addedAt FROM playlist_tracks LIMIT 150")
+                        if (crossResult.errorMessage != null && crossResult.errorMessage.contains("no such table")) {
+                            RoomDatabaseInspector.executeQuery(context, "SELECT playlistId, trackId FROM playlist_track_cross_ref LIMIT 150")
+                        } else {
+                            crossResult
+                        }
+                    }
                     3 -> RoomDatabaseInspector.executeQuery(context, customSqlQuery)
                     else -> RoomDatabaseInspector.executeQuery(context, "SELECT * FROM tracks LIMIT 50")
                 }
@@ -369,7 +376,7 @@ fun RoomDatabaseInspectorModal(
                         FilterChip(
                             selected = false,
                             onClick = {
-                                customSqlQuery = "SELECT p.id, p.name, COUNT(c.trackId) as canciones FROM playlists p LEFT JOIN playlist_track_cross_ref c ON p.id = c.playlistId GROUP BY p.id"
+                                customSqlQuery = "SELECT p.id, p.name, COUNT(c.trackId) as canciones FROM playlists p LEFT JOIN playlist_tracks c ON p.id = c.playlistId GROUP BY p.id"
                                 loadCurrentData()
                             },
                             label = { Text("Listas & Conteo", fontSize = 11.sp) },
@@ -458,7 +465,7 @@ fun RoomDatabaseInspectorModal(
                                     sb.append(r.joinToString(" | ")).append("\n")
                                 }
                                 clipboardManager.setText(AnnotatedString(sb.toString()))
-                                Toast.makeText(context, "${res.rowCount} filas copiadas al portapapeles", Toast.LENGTH_SHORT).show()
+                                context.showSafeToast("${res.rowCount} filas copiadas al portapapeles")
                             },
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = DarkSurfaceElevated,
@@ -561,7 +568,7 @@ fun RoomDatabaseInspectorModal(
                                                 val rowText = res.columns.zip(row)
                                                     .joinToString("\n") { "${it.first}: ${it.second ?: "NULL"}" }
                                                 clipboardManager.setText(AnnotatedString(rowText))
-                                                Toast.makeText(context, "Fila copiada al portapapeles", Toast.LENGTH_SHORT).show()
+                                                context.showSafeToast("Fila copiada al portapapeles")
                                             },
                                             modifier = Modifier.size(36.dp)
                                         ) {

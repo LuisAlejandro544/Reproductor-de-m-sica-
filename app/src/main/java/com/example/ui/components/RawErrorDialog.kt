@@ -1,6 +1,6 @@
 package com.example.ui.components
 
-import android.widget.Toast
+import com.example.util.showSafeToast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -90,7 +90,7 @@ fun RawErrorDialog(
             Button(
                 onClick = {
                     clipboardManager.setText(AnnotatedString(errorMessage))
-                    Toast.makeText(context, "Código de error copiado", Toast.LENGTH_SHORT).show()
+                    context.showSafeToast("Código de error copiado")
                 },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.error

@@ -34,6 +34,8 @@ object OboeAudioBridge {
     external fun nativeGetDuration(): Long
     external fun nativeIsPlaying(): Boolean
     external fun nativeIsPlaybackEnded(): Boolean
+    external fun nativeSetVolume(volume: Float)
+    external fun nativeGetVolume(): Float
 
     // Ecualizador Paramétrico de 10 Bandas (C++)
     external fun nativeSetEqualizerEnabled(enabled: Boolean)

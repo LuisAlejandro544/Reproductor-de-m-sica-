@@ -8,6 +8,7 @@ import com.example.debug.RitmoDebugTree
 import com.github.anrwatchdog.ANRWatchDog
 import com.pluto.Pluto
 import com.pluto.plugins.rooms.db.PlutoRoomsDatabasePlugin
+import com.pluto.plugins.rooms.db.PlutoRoomsDBWatcher
 import timber.log.Timber
 
 /**
@@ -55,7 +56,8 @@ class RitmoApplication : Application() {
             Pluto.Installer(this)
                 .addPlugin(PlutoRoomsDatabasePlugin("rooms-db"))
                 .install()
-            Timber.i("Pluto On-Device Debugger instalado con RoomsDatabasePlugin.")
+            PlutoRoomsDBWatcher.watch("ritmo_music.db", com.example.data.AppDatabase::class.java)
+            Timber.i("Pluto On-Device Debugger instalado con RoomsDatabasePlugin y ritmo_music.db en observación.")
         } catch (e: Exception) {
             Timber.e(e, "Error al iniciar Pluto Debugger")
         }
@@ -68,10 +70,13 @@ class RitmoApplication : Application() {
             Timber.e(e, "Error al iniciar FpsMonitor")
         }
 
-        // 6. Registrar arranque de la aplicación
-        Timber.i("Ritmo Application iniciada con éxito. Diagnóstico en memoria, Pluto, FpsMonitor, ANR-WatchDog y Timber activos.")
+        // 6. Configurar LeakCanary para suprimir fugas conocidas del framework del SO (Toast$TN en Android 11-14 / HiOS)
+        com.example.debug.LeakCanaryConfigurator.configure()
 
-        // 7. Verificar si hubo un crash previo para alertar al desarrollador
+        // 7. Registrar arranque de la aplicación
+        Timber.i("Ritmo Application iniciada con éxito. Diagnóstico en memoria, Pluto, Hyperion, FpsMonitor, ANR-WatchDog y Timber activos.")
+
+        // 8. Verificar si hubo un crash previo para alertar al desarrollador
         RitmoCrashHandler.getLastCrashReport(this)?.let { crashReport ->
             DebugLogManager.log(
                 tag = "RitmoCrashHandler",

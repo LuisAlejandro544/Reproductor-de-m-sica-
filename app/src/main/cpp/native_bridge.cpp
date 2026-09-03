@@ -91,6 +91,16 @@ Java_com_example_playback_OboeAudioBridge_nativeIsPlaybackEnded(JNIEnv* env, job
 }
 
 JNIEXPORT void JNICALL
+Java_com_example_playback_OboeAudioBridge_nativeSetVolume(JNIEnv* env, jobject /* this */, jfloat volume) {
+    getPlayer()->setVolume(static_cast<float>(volume));
+}
+
+JNIEXPORT jfloat JNICALL
+Java_com_example_playback_OboeAudioBridge_nativeGetVolume(JNIEnv* env, jobject /* this */) {
+    return static_cast<jfloat>(getPlayer()->getVolume());
+}
+
+JNIEXPORT void JNICALL
 Java_com_example_playback_OboeAudioBridge_nativeSetEqualizerEnabled(JNIEnv* env, jobject /* this */, jboolean enabled) {
     getPlayer()->setEqualizerEnabled(enabled == JNI_TRUE);
     gMedia3Equalizer.setEnabled(enabled == JNI_TRUE);

@@ -1,6 +1,7 @@
 package com.example.ui.settings
 
-import android.widget.Toast
+import com.example.debug.HyperionHelper
+import com.example.util.showSafeToast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,6 +17,7 @@ import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -76,7 +78,7 @@ fun SettingsDebugSection(
                         try {
                             Pluto.open()
                         } catch (e: Exception) {
-                            Toast.makeText(context, "No se pudo abrir Pluto: ${e.message}", Toast.LENGTH_SHORT).show()
+                            context.showSafeToast("No se pudo abrir Pluto: ${e.message}")
                         }
                     },
                     colors = ButtonDefaults.buttonColors(
@@ -96,6 +98,33 @@ fun SettingsDebugSection(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Abrir Depurador Pluto (Room DB & Logs)", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+
+                // Botón para abrir Hyperion Drawer On-Device
+                Button(
+                    onClick = {
+                        val ok = HyperionHelper.open(context)
+                        if (!ok) {
+                            context.showSafeToast("Agita el teléfono o abre la notificación para ver Hyperion")
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .testTag("settings_open_hyperion_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Widgets,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Abrir Menú Hyperion (Plugins de Inspección)", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 }
 
                 Row(
@@ -126,7 +155,7 @@ fun SettingsDebugSection(
                     OutlinedButton(
                         onClick = {
                             DebugLogManager.copyReportToClipboard(context)
-                            Toast.makeText(context, "Diagnóstico copiado al portapapeles", Toast.LENGTH_SHORT).show()
+                            context.showSafeToast("Diagnóstico copiado al portapapeles")
                         },
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier

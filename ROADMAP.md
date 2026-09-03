@@ -63,6 +63,9 @@ Este documento define la hoja de ruta estratégica para el desarrollo de **Ritmo
 ## 🎧 Fase 2 — Procesamiento DSP Avanzado y Funciones por Motor (En Planificación)
 
 - [ ] **Funciones Exclusivas del Motor Nativo (Oboe C++):**
+  - **Herramienta de Diagnóstico y Telemetría para C++:**
+    - Creación de una herramienta dedicada para C++ para depuración, inspección y profiling del motor nativo directamente desde el smartphone sin PC ni ADB.
+    - Monitoreo en tiempo real de buffers PCM, tiempos de ciclo de renderizado nativo, detección de underruns/xruns y análisis del estado de memoria nativa.
   - **Audio Espacial 360° / Efecto 8D Gratuito:**
     - Procesamiento matemático en tiempo real a nivel de muestra PCM (*sample-by-sample*).
     - Paneo circular continuo L/R con velocidad y radio de giro ajustables.

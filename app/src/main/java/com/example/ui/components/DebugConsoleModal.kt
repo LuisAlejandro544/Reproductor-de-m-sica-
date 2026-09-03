@@ -1,6 +1,7 @@
 package com.example.ui.components
 
-import android.widget.Toast
+import com.example.debug.HyperionHelper
+import com.example.util.showSafeToast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -186,7 +187,12 @@ fun DebugConsoleModal(
                         fontFamily = FontFamily.Monospace
                     )
                     Text(
-                        text = "• Detección Fugas: ✅ LeakCanary listo (Debug APK)",
+                        text = "• Detección Fugas: ✅ LeakCanary listo (Reglas Toast activas)",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    Text(
+                        text = "• Inspección & Plugins: ✅ Hyperion-Android + Pluto",
                         style = MaterialTheme.typography.bodySmall,
                         fontFamily = FontFamily.Monospace
                     )
@@ -271,6 +277,35 @@ fun DebugConsoleModal(
                 }
             }
 
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Botón dedicado para abrir Hyperion Drawer (Cajón de Plugins)
+            Button(
+                onClick = {
+                    val opened = HyperionHelper.open(context)
+                    if (!opened) {
+                        context.showSafeToast("Agita el móvil o toca la notificación para abrir Hyperion")
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                ),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .testTag("open_hyperion_drawer_button")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Widgets,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Abrir Menú Hyperion (Plugins & Medición)", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+
             val savedCrashReport = remember { com.example.debug.RitmoCrashHandler.getLastCrashReport(context) }
             var currentCrashReport by remember { mutableStateOf(savedCrashReport) }
 
@@ -299,7 +334,7 @@ fun DebugConsoleModal(
                                 onClick = {
                                     com.example.debug.RitmoCrashHandler.clearLastCrashReport(context)
                                     currentCrashReport = null
-                                    Toast.makeText(context, "Registro de crash limpiado", Toast.LENGTH_SHORT).show()
+                                    context.showSafeToast("Registro de crash limpiado")
                                 },
                                 modifier = Modifier.size(36.dp)
                             ) {
@@ -334,7 +369,7 @@ fun DebugConsoleModal(
                     onClick = {
                         val ok = DebugLogManager.copyReportToClipboard(context)
                         if (ok) {
-                            Toast.makeText(context, "Reporte completo copiado al portapapeles", Toast.LENGTH_SHORT).show()
+                            context.showSafeToast("Reporte completo copiado al portapapeles")
                         }
                     },
                     modifier = Modifier
@@ -435,7 +470,7 @@ fun LogEntryItem(entry: DebugLogEntry) {
             }
         }
         clipboardManager.setText(AnnotatedString(singleLogText))
-        Toast.makeText(context, "Log copiado al portapapeles", Toast.LENGTH_SHORT).show()
+        context.showSafeToast("Log copiado al portapapeles")
     }
 
     Column(

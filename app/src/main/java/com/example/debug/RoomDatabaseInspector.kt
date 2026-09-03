@@ -199,7 +199,8 @@ object RoomDatabaseInspector {
 
             trackCount = countTable("tracks")
             playlistCount = countTable("playlists")
-            crossRefCount = countTable("playlist_track_cross_ref")
+            val pTracksCount = countTable("playlist_tracks")
+            crossRefCount = if (pTracksCount > 0) pTracksCount else countTable("playlist_track_cross_ref")
         } catch (e: Exception) {
             DebugLogManager.log(
                 tag = "RoomDatabaseInspector",

@@ -10,6 +10,7 @@
 #include <atomic>
 #include <mutex>
 #include <memory>
+#include <thread>
 
 #define LOG_TAG "RitmoNativeAudio"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -33,6 +34,10 @@ public:
     int64_t getPositionMs() const;
     int64_t getDurationMs() const;
     bool isPlaying() const;
+
+    // Métodos de Volumen y Pre-amplificación de salida
+    void setVolume(float volume);
+    float getVolume() const;
 
     // Métodos del Ecualizador Paramétrico de 10 Bandas
     void setEqualizerEnabled(bool enabled);
@@ -60,7 +65,7 @@ public:
 private:
     bool openStream();
     void closeStream();
-    bool decodeAudioFile(const std::string& filePath);
+    void decodeRemaining(AMediaExtractor *extractor, AMediaCodec *codec, int fd, bool initialSawInputEOS);
 
     std::shared_ptr<oboe::AudioStream> mAudioStream;
     std::string mCurrentFilePath;
@@ -73,10 +78,15 @@ private:
     int64_t mDurationMs = 0;
 
     std::atomic<int64_t> mCurrentFrameIndex{0};
+    std::atomic<size_t> mDecodedSamples{0};
     std::atomic<bool> mIsPlaying{false};
     std::atomic<bool> mIsInitialized{false};
     std::atomic<bool> mIsPlaybackEnded{false};
     std::atomic<bool> mCancelLoading{false};
+    std::atomic<bool> mIsDecodingFinished{false};
+    std::atomic<float> mVolume{1.0f};
+
+    std::thread mDecoderThread;
 
     TenBandEqualizer mEqualizer;
 

@@ -47,6 +47,7 @@ timber = "5.0.1"
 leakcanary = "2.14"
 anrwatchdog = "1.4.0"
 pluto = "2.2.2"
+hyperion = "0.9.38"
 
 
 [libraries]
@@ -114,6 +115,14 @@ pluto = { group = "com.plutolib", name = "pluto", version.ref = "pluto" }
 pluto-no-op = { group = "com.plutolib", name = "pluto-no-op", version.ref = "pluto" }
 pluto-rooms-db = { group = "com.plutolib.plugins", name = "rooms-db", version.ref = "pluto" }
 pluto-rooms-db-no-op = { group = "com.plutolib.plugins", name = "rooms-db-no-op", version.ref = "pluto" }
+hyperion-core = { group = "com.willowtreeapps.hyperion", name = "hyperion-core", version.ref = "hyperion" }
+hyperion-core-no-op = { group = "com.willowtreeapps.hyperion", name = "hyperion-core-no-op", version.ref = "hyperion" }
+hyperion-attr = { group = "com.willowtreeapps.hyperion", name = "hyperion-attr", version.ref = "hyperion" }
+hyperion-build-config = { group = "com.willowtreeapps.hyperion", name = "hyperion-build-config", version.ref = "hyperion" }
+hyperion-disk = { group = "com.willowtreeapps.hyperion", name = "hyperion-disk", version.ref = "hyperion" }
+hyperion-shared-preferences = { group = "com.willowtreeapps.hyperion", name = "hyperion-shared-preferences", version.ref = "hyperion" }
+hyperion-crash = { group = "com.willowtreeapps.hyperion", name = "hyperion-crash", version.ref = "hyperion" }
+hyperion-measurement = { group = "com.willowtreeapps.hyperion", name = "hyperion-measurement", version.ref = "hyperion" }
 
 
 [plugins]
