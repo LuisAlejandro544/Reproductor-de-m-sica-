@@ -1,14 +1,5 @@
-# Registro de Cambios y Mensajes de Commit — Ritmo
+# Registro de Cambios y Mensaje de Commit — Ritmo
 
-## Correcciones en Visor de Room Database e Integración de Pluto
-- Corrección de consultas SQL en RoomDatabaseInspectorModal para mitigar errores de columnas inexistentes y discrepancias en nombres de tablas.
-- Integración de PlutoRoomsDBWatcher en RitmoApplication y AppDatabase para inspección y monitoreo reactivo de la base de datos Room.
-
-## Integración del Núcleo de Depuración Hyperion-Android
-- Inclusión de com.willowtreeapps.hyperion:hyperion-core y complementos modulares (hyperion-attr, hyperion-build-config, hyperion-disk, hyperion-shared-preferences, hyperion-crash, hyperion-measurement) en la configuración de dependencias de depuración.
-- Creación de HyperionHelper para permitir la apertura táctil del cajón de herramientas de Hyperion desde la Consola de Diagnóstico (DebugConsoleModal) y la sección de depuración en Ajustes (SettingsDebugSection).
-
-## Mitigación de Fugas de Memoria de Toast (Toast$TN y ToastPresenter)
-- Creación del componente utilitario SafeToast (showSafeToast) vinculado al ApplicationContext en lugar de referencias directas al ciclo de vida de Activity.
-- Migración de todas las invocaciones de Toast.makeText en componentes de interfaz y depuración hacia SafeToast.
-- Creación de LeakCanaryConfigurator con exclusión mediante reflexión de campos de instancia internos del framework de Android (Toast$TN.mPresenter, ToastPresenter.mWindowManager) para evitar falsos positivos y reportes de retención en LeakCanary.
+## Corrección en Compilación Kotlin Debug y Planificación de Telemetría C++
+- Corrección de error de compilación en la tarea Gradle `:app:compileDebugKotlin` (`Unresolved reference 'Widgets'`) en `DebugConsoleModal.kt` añadiendo la importación `androidx.compose.material.icons.filled.Widgets`.
+- Actualización de la hoja de ruta (`ROADMAP.md`) en la Fase 2 para incluir la herramienta nativa de diagnóstico, inspección de búferes PCM y telemetría para el motor de audio Oboe C++.
