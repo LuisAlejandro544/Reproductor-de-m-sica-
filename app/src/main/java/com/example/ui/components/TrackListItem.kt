@@ -25,10 +25,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -63,13 +63,10 @@ fun TrackListItem(
     isCurrent: Boolean,
     isPlaying: Boolean,
     onClick: () -> Unit,
-    onDelete: () -> Unit,
+    onOptionsClick: () -> Unit,
     modifier: Modifier = Modifier,
-    onEditArtwork: () -> Unit = {},
-    onEditMetadata: () -> Unit = {}
+    onLikeClick: (() -> Unit)? = null
 ) {
-    var menuExpanded by remember { mutableStateOf(false) }
-
     val backgroundColor by animateColorAsState(
         targetValue = if (isCurrent) DarkSurfaceVariant.copy(alpha = 0.65f) else Color.Transparent,
         animationSpec = tween(280),
@@ -154,71 +151,61 @@ fun TrackListItem(
             }
         }
 
-        // More options dropdown (mínimo 48dp)
-        Box {
+        // Botón rápido de Me gusta (Corazón)
+        if (onLikeClick != null) {
             IconButton(
-                onClick = { menuExpanded = true },
+                onClick = onLikeClick,
                 modifier = Modifier
                     .size(48.dp)
-                    .testTag("track_options_${track.id}")
+                    .testTag("track_like_btn_${track.id}")
             ) {
                 Icon(
-                    imageVector = Icons.Default.MoreVert,
-                    contentDescription = "Opciones de la canción",
-                    tint = TextTertiary
-                )
-            }
-
-            DropdownMenu(
-                expanded = menuExpanded,
-                onDismissRequest = { menuExpanded = false },
-                modifier = Modifier.background(DarkSurface)
-            ) {
-                DropdownMenuItem(
-                    text = { Text("Cambiar carátula (WebP)", color = TextPrimary) },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.AddPhotoAlternate,
-                            contentDescription = null,
-                            tint = GreenAccent
-                        )
-                    },
-                    onClick = {
-                        menuExpanded = false
-                        onEditArtwork()
-                    }
-                )
-                DropdownMenuItem(
-                    text = { Text("Editar con Rust (Tags)", color = TextPrimary) },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.Edit,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.tertiary
-                        )
-                    },
-                    onClick = {
-                        menuExpanded = false
-                        onEditMetadata()
-                    }
-                )
-                DropdownMenuItem(
-                    text = { Text("Eliminar de la biblioteca", color = MaterialTheme.colorScheme.error) },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.DeleteOutline,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.error
-                        )
-                    },
-                    onClick = {
-                        menuExpanded = false
-                        onDelete()
-                    }
+                    imageVector = if (track.isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                    contentDescription = if (track.isLiked) "Quitar de Me gusta" else "Añadir a Me gusta",
+                    tint = if (track.isLiked) Color(0xFFE91E63) else TextTertiary,
+                    modifier = Modifier.size(20.dp)
                 )
             }
         }
+
+        // Botón táctil de más opciones (mínimo 48dp, sin popups anidados en memoria)
+        IconButton(
+            onClick = onOptionsClick,
+            modifier = Modifier
+                .size(48.dp)
+                .testTag("track_options_${track.id}")
+        ) {
+            Icon(
+                imageVector = Icons.Default.MoreVert,
+                contentDescription = "Opciones de la canción",
+                tint = TextTertiary
+            )
+        }
     }
+}
+
+/**
+ * Sobrecarga de compatibilidad para TrackListItem.
+ */
+@Composable
+fun TrackListItem(
+    track: TrackEntity,
+    isCurrent: Boolean,
+    isPlaying: Boolean,
+    onClick: () -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
+    onEditArtwork: () -> Unit = {},
+    onEditMetadata: () -> Unit = {}
+) {
+    TrackListItem(
+        track = track,
+        isCurrent = isCurrent,
+        isPlaying = isPlaying,
+        onClick = onClick,
+        onOptionsClick = onEditArtwork,
+        modifier = modifier
+    )
 }
 
 @Composable

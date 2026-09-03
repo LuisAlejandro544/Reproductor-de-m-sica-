@@ -29,6 +29,18 @@ interface TrackDao {
     @Query("UPDATE tracks SET title = :title, artist = :artist, album = :album WHERE id = :id")
     suspend fun updateTrackMetadata(id: Long, title: String, artist: String, album: String)
 
+    @Query("UPDATE tracks SET isLiked = :isLiked WHERE id = :id")
+    suspend fun updateLiked(id: Long, isLiked: Boolean)
+
+    @Query("UPDATE tracks SET isFavorite = :isFavorite WHERE id = :id")
+    suspend fun updateFavorite(id: Long, isFavorite: Boolean)
+
+    @Query("SELECT * FROM tracks WHERE isLiked = 1 ORDER BY dateAdded DESC")
+    fun getLikedTracks(): Flow<List<TrackEntity>>
+
+    @Query("SELECT * FROM tracks WHERE isFavorite = 1 ORDER BY dateAdded DESC")
+    fun getFavoriteTracks(): Flow<List<TrackEntity>>
+
     @Query("DELETE FROM tracks")
     suspend fun deleteAll()
 }

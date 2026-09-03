@@ -17,12 +17,22 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.QueueMusic
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -31,9 +41,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.data.PlaylistEntity
 import com.example.data.TrackEntity
+import com.example.ui.components.AddToPlaylistBottomSheet
+import com.example.ui.components.CreatePlaylistDialog
 import com.example.ui.components.DebugConsoleModal
 import com.example.ui.components.EditTrackMetadataDialog
 import com.example.ui.components.EngineSelectDialog
@@ -45,8 +60,15 @@ import com.example.ui.main.EmptyLibraryView
 import com.example.ui.main.MainProgressBanners
 import com.example.ui.main.MainSearchBar
 import com.example.ui.main.MainTopAppBar
+import com.example.ui.main.PlaylistDetailView
+import com.example.ui.main.PlaylistListView
 import com.example.ui.main.TrackListView
 import com.example.ui.theme.DarkBackground
+import com.example.ui.theme.DarkSurface
+import com.example.ui.theme.GreenAccent
+import com.example.ui.theme.GreenPrimary
+import com.example.ui.theme.TextPrimary
+import com.example.ui.theme.TextSecondary
 
 /**
  * Pantalla principal modular de Ritmo Music Player.
@@ -91,6 +113,16 @@ fun MainMusicScreen(
     val isDebugConsoleOpen by viewModel.isDebugConsoleOpen.collectAsStateWithLifecycle()
     val rawErrorDialog by viewModel.rawErrorDialog.collectAsStateWithLifecycle()
 
+    val currentNavTab by viewModel.currentNavTab.collectAsStateWithLifecycle()
+    val playlists by viewModel.playlists.collectAsStateWithLifecycle()
+    val likedTracks by viewModel.likedTracks.collectAsStateWithLifecycle()
+    val favoriteTracks by viewModel.favoriteTracks.collectAsStateWithLifecycle()
+    val selectedPlaylistTarget by viewModel.selectedPlaylistTarget.collectAsStateWithLifecycle()
+
+    var showCreatePlaylistDialog by remember { mutableStateOf(false) }
+    var playlistToEdit by remember { mutableStateOf<PlaylistEntity?>(null) }
+    var trackForAddToPlaylist by remember { mutableStateOf<TrackEntity?>(null) }
+
     var targetTrackForArtwork by remember { mutableStateOf<TrackEntity?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -131,87 +163,221 @@ fun MainMusicScreen(
         viewModel.setPlayerExpanded(false)
     }
 
+    // Back handler para cerrar detalle de playlist
+    BackHandler(enabled = selectedPlaylistTarget != null && !isPlayerExpanded && !isEqualizerOpen && !isSettingsOpen) {
+        viewModel.closePlaylistDetail()
+    }
+
+    // Back handler para volver a la pestaña de canciones si estamos en playlists
+    BackHandler(enabled = currentNavTab == MainNavigationTab.PLAYLISTS && selectedPlaylistTarget == null && !isPlayerExpanded && !isEqualizerOpen && !isSettingsOpen) {
+        viewModel.selectNavTab(MainNavigationTab.SONGS)
+    }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = DarkBackground,
         snackbarHost = {
             SnackbarHost(
                 hostState = snackbarHostState,
-                modifier = Modifier.padding(bottom = if (currentTrack != null && !isPlayerExpanded) 80.dp else 16.dp)
+                modifier = Modifier.padding(bottom = 16.dp)
             )
-        }
-    ) { _ ->
-        Box(modifier = Modifier.fillMaxSize()) {
-            // Contenido principal de la biblioteca
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .statusBarsPadding()
-            ) {
-                MainTopAppBar(
-                    tracksCount = tracks.size,
-                    activeEngine = activeEngine,
-                    onOpenSettings = { viewModel.openSettings() },
-                    onImportClicked = { filePickerLauncher.launch(arrayOf("audio/*")) },
-                    onOpenDebugConsole = { viewModel.openDebugConsole() }
-                )
+        },
+        bottomBar = {
+            if (!isPlayerExpanded && !isSettingsOpen) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    // Mini player posicionado inmediatamente sobre la barra de navegación inferior
+                    if (currentTrack != null) {
+                        MiniPlayer(
+                            track = currentTrack!!,
+                            isPlaying = isPlaying,
+                            currentPositionMs = currentPositionMs,
+                            durationMs = durationMs,
+                            onPlayPause = { viewModel.playPause() },
+                            onNext = { viewModel.next() },
+                            onExpand = { viewModel.setPlayerExpanded(true) },
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                        )
+                    }
 
-                MainProgressBanners(
-                    isImporting = isImporting,
-                    isUpdatingArtwork = isUpdatingArtwork
-                )
+                    // Barra de navegación inferior
+                    NavigationBar(
+                        containerColor = DarkSurface,
+                        tonalElevation = 8.dp
+                    ) {
+                        NavigationBarItem(
+                            selected = currentNavTab == MainNavigationTab.SONGS && selectedPlaylistTarget == null,
+                            onClick = {
+                                viewModel.closePlaylistDetail()
+                                viewModel.selectNavTab(MainNavigationTab.SONGS)
+                            },
+                            icon = {
+                                Icon(
+                                    imageVector = Icons.Default.MusicNote,
+                                    contentDescription = "Canciones"
+                                )
+                            },
+                            label = {
+                                Text(
+                                    text = "Canciones",
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = Color.Black,
+                                selectedTextColor = GreenAccent,
+                                indicatorColor = GreenPrimary,
+                                unselectedIconColor = TextSecondary,
+                                unselectedTextColor = TextSecondary
+                            ),
+                            modifier = Modifier.testTag("nav_tab_songs")
+                        )
 
-                if (tracks.isNotEmpty() || searchQuery.isNotBlank()) {
-                    MainSearchBar(
-                        query = searchQuery,
-                        onQueryChange = { viewModel.setSearchQuery(it) }
-                    )
-                }
-
-                if (tracks.isEmpty()) {
-                    EmptyLibraryView(
-                        searchQuery = searchQuery,
-                        onImportClicked = { filePickerLauncher.launch(arrayOf("audio/*")) },
-                        modifier = Modifier.weight(1f)
-                    )
-                } else {
-                    TrackListView(
-                        tracks = tracks,
-                        currentTrackId = currentTrack?.id,
-                        isPlaying = isPlaying,
-                        onTrackClick = { viewModel.playTrack(it) },
-                        onDeleteTrack = { viewModel.deleteTrack(it) },
-                        onEditArtwork = { track ->
-                            targetTrackForArtwork = track
-                            photoPickerLauncher.launch(
-                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                            )
-                        },
-                        onEditMetadata = { track ->
-                            viewModel.openTrackEditor(track)
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
+                        NavigationBarItem(
+                            selected = currentNavTab == MainNavigationTab.PLAYLISTS || selectedPlaylistTarget != null,
+                            onClick = {
+                                viewModel.selectNavTab(MainNavigationTab.PLAYLISTS)
+                            },
+                            icon = {
+                                Icon(
+                                    imageVector = Icons.Default.QueueMusic,
+                                    contentDescription = "Playlists"
+                                )
+                            },
+                            label = {
+                                Text(
+                                    text = "Playlists",
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = Color.Black,
+                                selectedTextColor = GreenAccent,
+                                indicatorColor = GreenPrimary,
+                                unselectedIconColor = TextSecondary,
+                                unselectedTextColor = TextSecondary
+                            ),
+                            modifier = Modifier.testTag("nav_tab_playlists")
+                        )
+                    }
                 }
             }
-
-            // Docked Mini Player en la parte inferior
-            if (currentTrack != null && !isPlayerExpanded) {
-                Box(
+        }
+    ) { paddingValues ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = paddingValues.calculateBottomPadding())
+        ) {
+            // Contenido según la pestaña y estado de navegación
+            if (selectedPlaylistTarget != null) {
+                PlaylistDetailView(
+                    target = selectedPlaylistTarget!!,
+                    likedTracksFlow = viewModel.likedTracks,
+                    favoriteTracksFlow = viewModel.favoriteTracks,
+                    getTracksForPlaylist = { viewModel.getTracksForPlaylist(it) },
+                    currentTrackId = currentTrack?.id,
+                    isPlaying = isPlaying,
+                    onBack = { viewModel.closePlaylistDetail() },
+                    onPlayTrack = { list, t -> viewModel.playPlaylistTrack(list, t) },
+                    onPlayAll = { viewModel.playAllTracksInList(it) },
+                    onPlayShuffled = { viewModel.playShuffledInList(it) },
+                    onToggleLiked = { viewModel.toggleTrackLiked(it) },
+                    onRemoveTrackFromPlaylist = { pId, t -> viewModel.removeTrackFromPlaylist(pId, t) },
+                    onEditPlaylist = { playlistToEdit = it },
+                    onDeletePlaylist = { viewModel.deletePlaylist(it) },
+                    onOpenAddToPlaylist = { trackForAddToPlaylist = it },
+                    onEditArtwork = { track ->
+                        targetTrackForArtwork = track
+                        photoPickerLauncher.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        )
+                    },
+                    onEditMetadata = { track -> viewModel.openTrackEditor(track) },
+                    onDeleteTrackFromLibrary = { viewModel.deleteTrack(it) }
+                )
+            } else if (currentNavTab == MainNavigationTab.PLAYLISTS) {
+                Column(
                     modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .navigationBarsPadding()
-                        .padding(bottom = 8.dp)
+                        .fillMaxSize()
+                        .statusBarsPadding()
                 ) {
-                    MiniPlayer(
-                        track = currentTrack!!,
-                        isPlaying = isPlaying,
-                        currentPositionMs = currentPositionMs,
-                        durationMs = durationMs,
-                        onPlayPause = { viewModel.playPause() },
-                        onNext = { viewModel.next() },
-                        onExpand = { viewModel.setPlayerExpanded(true) }
+                    MainTopAppBar(
+                        tracksCount = tracks.size,
+                        activeEngine = activeEngine,
+                        onOpenSettings = { viewModel.openSettings() },
+                        onImportClicked = { filePickerLauncher.launch(arrayOf("audio/*")) },
+                        onOpenDebugConsole = { viewModel.openDebugConsole() }
                     )
+
+                    PlaylistListView(
+                        playlists = playlists,
+                        likedTracks = likedTracks,
+                        favoriteTracks = favoriteTracks,
+                        getTrackCountForPlaylist = { viewModel.getTrackCountForPlaylist(it) },
+                        onOpenLiked = { viewModel.openPlaylist(PlaylistDetailTarget.Liked) },
+                        onOpenFavorites = { viewModel.openPlaylist(PlaylistDetailTarget.Favorites) },
+                        onOpenPlaylist = { viewModel.openPlaylist(PlaylistDetailTarget.Custom(it)) },
+                        onCreatePlaylist = { showCreatePlaylistDialog = true },
+                        onEditPlaylist = { playlistToEdit = it },
+                        onDeletePlaylist = { viewModel.deletePlaylist(it) },
+                        currentTrackId = currentTrack?.id
+                    )
+                }
+            } else {
+                // Pestaña Canciones
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .statusBarsPadding()
+                ) {
+                    MainTopAppBar(
+                        tracksCount = tracks.size,
+                        activeEngine = activeEngine,
+                        onOpenSettings = { viewModel.openSettings() },
+                        onImportClicked = { filePickerLauncher.launch(arrayOf("audio/*")) },
+                        onOpenDebugConsole = { viewModel.openDebugConsole() }
+                    )
+
+                    MainProgressBanners(
+                        isImporting = isImporting,
+                        isUpdatingArtwork = isUpdatingArtwork
+                    )
+
+                    if (tracks.isNotEmpty() || searchQuery.isNotBlank()) {
+                        MainSearchBar(
+                            query = searchQuery,
+                            onQueryChange = { viewModel.setSearchQuery(it) }
+                        )
+                    }
+
+                    if (tracks.isEmpty()) {
+                        EmptyLibraryView(
+                            searchQuery = searchQuery,
+                            onImportClicked = { filePickerLauncher.launch(arrayOf("audio/*")) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    } else {
+                        TrackListView(
+                            tracks = tracks,
+                            currentTrackId = currentTrack?.id,
+                            isPlaying = isPlaying,
+                            onTrackClick = { viewModel.playTrack(it) },
+                            onDeleteTrack = { viewModel.deleteTrack(it) },
+                            onEditArtwork = { track ->
+                                targetTrackForArtwork = track
+                                photoPickerLauncher.launch(
+                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                )
+                            },
+                            onEditMetadata = { track ->
+                                viewModel.openTrackEditor(track)
+                            },
+                            onToggleLiked = { viewModel.toggleTrackLiked(it) },
+                            onToggleFavorite = { viewModel.toggleTrackFavorite(it) },
+                            onAddToPlaylist = { trackForAddToPlaylist = it },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
             }
 
@@ -254,7 +420,10 @@ fun MainMusicScreen(
                             photoPickerLauncher.launch(
                                 PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                             )
-                        }
+                        },
+                        onToggleLiked = { viewModel.toggleTrackLiked(it) },
+                        onToggleFavorite = { viewModel.toggleTrackFavorite(it) },
+                        onAddToPlaylist = { trackForAddToPlaylist = it }
                     )
                 }
             }
@@ -348,6 +517,46 @@ fun MainMusicScreen(
             onDismissRequest = {
                 viewModel.dismissInitialEnginePrompt()
             }
+        )
+    }
+
+    // Diálogo de Creación de Playlist
+    if (showCreatePlaylistDialog) {
+        CreatePlaylistDialog(
+            onDismiss = { showCreatePlaylistDialog = false },
+            onConfirm = { name, desc ->
+                viewModel.createPlaylist(name, desc)
+                showCreatePlaylistDialog = false
+            }
+        )
+    }
+
+    // Diálogo de Edición de Playlist existente
+    playlistToEdit?.let { pl ->
+        CreatePlaylistDialog(
+            initialName = pl.name,
+            initialDescription = pl.description,
+            isEditing = true,
+            onDismiss = { playlistToEdit = null },
+            onConfirm = { name, desc ->
+                viewModel.updatePlaylist(pl, name, desc)
+                playlistToEdit = null
+            }
+        )
+    }
+
+    // Modal BottomSheet para Añadir canción a Playlist
+    trackForAddToPlaylist?.let { trk ->
+        AddToPlaylistBottomSheet(
+            track = trk,
+            playlists = playlists,
+            getPlaylistIdsForTrack = { viewModel.getPlaylistIdsForTrack(it) },
+            onToggleLiked = { viewModel.toggleTrackLiked(it) },
+            onToggleFavorite = { viewModel.toggleTrackFavorite(it) },
+            onAddToPlaylist = { pl, tr -> viewModel.addTrackToPlaylist(pl, tr) },
+            onRemoveFromPlaylist = { plId, tr -> viewModel.removeTrackFromPlaylist(plId, tr) },
+            onCreateNewPlaylist = { showCreatePlaylistDialog = true },
+            onDismiss = { trackForAddToPlaylist = null }
         )
     }
 }

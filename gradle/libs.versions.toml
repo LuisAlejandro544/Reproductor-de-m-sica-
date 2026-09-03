@@ -45,6 +45,8 @@ media3 = "1.5.1"
 oboe = "1.9.3"
 timber = "5.0.1"
 leakcanary = "2.14"
+anrwatchdog = "1.4.0"
+pluto = "2.2.2"
 
 
 [libraries]
@@ -107,6 +109,11 @@ androidx-credentials-play-services = { group = "androidx.credentials", name = "c
 googleid = { group = "com.google.android.libraries.identity.googleid", name = "googleid", version.ref = "googleid" }
 timber = { group = "com.jakewharton.timber", name = "timber", version.ref = "timber" }
 leakcanary-android = { group = "com.squareup.leakcanary", name = "leakcanary-android", version.ref = "leakcanary" }
+anr-watchdog = { group = "com.github.anrwatchdog", name = "anrwatchdog", version.ref = "anrwatchdog" }
+pluto = { group = "com.plutolib", name = "pluto", version.ref = "pluto" }
+pluto-no-op = { group = "com.plutolib", name = "pluto-no-op", version.ref = "pluto" }
+pluto-rooms-db = { group = "com.plutolib.plugins", name = "rooms-db", version.ref = "pluto" }
+pluto-rooms-db-no-op = { group = "com.plutolib.plugins", name = "rooms-db-no-op", version.ref = "pluto" }
 
 
 [plugins]

@@ -3,8 +3,14 @@ package com.example.data
 import kotlinx.coroutines.flow.Flow
 import java.io.File
 
-class TrackRepository(private val trackDao: TrackDao) {
+class TrackRepository(
+    private val trackDao: TrackDao,
+    private val playlistDao: PlaylistDao
+) {
     val allTracks: Flow<List<TrackEntity>> = trackDao.getAllTracks()
+    val likedTracks: Flow<List<TrackEntity>> = trackDao.getLikedTracks()
+    val favoriteTracks: Flow<List<TrackEntity>> = trackDao.getFavoriteTracks()
+    val allPlaylists: Flow<List<PlaylistEntity>> = playlistDao.getAllPlaylists()
 
     suspend fun insertTracks(tracks: List<TrackEntity>) {
         trackDao.insertTracks(tracks)
@@ -26,7 +32,55 @@ class TrackRepository(private val trackDao: TrackDao) {
         trackDao.updateTrackMetadata(id, title, artist, album)
     }
 
+    suspend fun toggleLiked(trackId: Long, isLiked: Boolean) {
+        trackDao.updateLiked(trackId, isLiked)
+    }
+
+    suspend fun toggleFavorite(trackId: Long, isFavorite: Boolean) {
+        trackDao.updateFavorite(trackId, isFavorite)
+    }
+
+    suspend fun createPlaylist(name: String, description: String = ""): Long {
+        return playlistDao.insertPlaylist(
+            PlaylistEntity(name = name.trim(), description = description.trim())
+        )
+    }
+
+    suspend fun updatePlaylist(playlist: PlaylistEntity) {
+        playlistDao.updatePlaylist(playlist)
+    }
+
+    suspend fun deletePlaylist(playlistId: Long) {
+        playlistDao.clearTracksFromPlaylist(playlistId)
+        playlistDao.deletePlaylistById(playlistId)
+    }
+
+    suspend fun addTrackToPlaylist(playlistId: Long, trackId: Long) {
+        playlistDao.addTrackToPlaylist(PlaylistTrackCrossRef(playlistId = playlistId, trackId = trackId))
+    }
+
+    suspend fun removeTrackFromPlaylist(playlistId: Long, trackId: Long) {
+        playlistDao.removeTrackFromPlaylist(playlistId, trackId)
+    }
+
+    fun getTracksForPlaylist(playlistId: Long): Flow<List<TrackEntity>> {
+        return playlistDao.getTracksForPlaylist(playlistId)
+    }
+
+    fun getTrackCountForPlaylist(playlistId: Long): Flow<Int> {
+        return playlistDao.getTrackCountForPlaylist(playlistId)
+    }
+
+    fun getPlaylistIdsForTrack(trackId: Long): Flow<List<Long>> {
+        return playlistDao.getPlaylistIdsForTrack(trackId)
+    }
+
+    suspend fun getPlaylistIdsForTrackSync(trackId: Long): List<Long> {
+        return playlistDao.getPlaylistIdsForTrackSync(trackId)
+    }
+
     suspend fun deleteTrack(track: TrackEntity) {
+        playlistDao.removeTrackFromAllPlaylists(track.id)
         trackDao.deleteTrackById(track.id)
         // Clean up audio file and artwork if they exist in private storage
         try {

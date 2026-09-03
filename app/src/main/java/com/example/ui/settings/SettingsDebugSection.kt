@@ -14,6 +14,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -22,7 +24,9 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -30,7 +34,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.debug.DebugLogManager
 import com.example.ui.theme.DarkSurface
+import com.example.ui.theme.DarkSurfaceVariant
+import com.example.ui.theme.GreenAccent
+import com.example.ui.theme.GreenPrimary
+import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
+import com.pluto.Pluto
 
 /**
  * Sección de herramientas de debug y telemetría en tiempo real para desarrollo en móvil.
@@ -43,7 +52,7 @@ fun SettingsDebugSection(
 
     SettingsSection(
         title = "Herramientas de Debug & Telemetría Cruda",
-        subtitle = "Diagnóstico profundo con códigos numéricos, Timber y detección de fugas",
+        subtitle = "Diagnóstico profundo con códigos numéricos, Pluto, ANR-WatchDog y memoria",
         icon = Icons.Default.BugReport
     ) {
         Surface(
@@ -56,10 +65,38 @@ fun SettingsDebugSection(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    text = "Suite técnica para depurar anomalías de audio C++ Oboe, tags Rust, registros Timber y memoria directamente en la pantalla de tu smartphone sin requerir PC.",
+                    text = "Suite técnica para depurar anomalías de audio C++ Oboe, tags Rust, registros Timber, inspección de base de datos Room con Pluto y detección ANR directamente en tu smartphone sin PC.",
                     style = MaterialTheme.typography.bodySmall,
                     color = TextSecondary
                 )
+
+                // Botón para abrir Pluto On-Device Inspector
+                Button(
+                    onClick = {
+                        try {
+                            Pluto.open()
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "No se pudo abrir Pluto: ${e.message}", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = GreenPrimary,
+                        contentColor = Color.Black
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .testTag("settings_open_pluto_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Terminal,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Abrir Depurador Pluto (Room DB & Logs)", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -104,6 +141,27 @@ fun SettingsDebugSection(
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("Copiar Reporte", fontSize = 13.sp)
                     }
+                }
+
+                // Indicador de vigilancia activa ANR-WatchDog
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Shield,
+                        contentDescription = null,
+                        tint = GreenAccent,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "ANR-WatchDog activo: Monitor en hilo UI con umbral de 3500ms",
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                        color = TextSecondary
+                    )
                 }
             }
         }

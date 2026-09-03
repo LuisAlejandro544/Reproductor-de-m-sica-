@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.data.AppDatabase
+import com.example.data.PlaylistEntity
 import com.example.data.TrackEntity
 import com.example.data.TrackRepository
 import com.example.playback.AudioEngineType
@@ -25,6 +26,17 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+enum class MainNavigationTab {
+    SONGS,
+    PLAYLISTS
+}
+
+sealed interface PlaylistDetailTarget {
+    data object Liked : PlaylistDetailTarget
+    data object Favorites : PlaylistDetailTarget
+    data class Custom(val playlist: PlaylistEntity) : PlaylistDetailTarget
+}
+
 class MusicPlayerViewModel(
     application: Application,
     private val trackRepository: TrackRepository,
@@ -39,6 +51,40 @@ class MusicPlayerViewModel(
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = emptyList()
     )
+
+    val likedTracks: StateFlow<List<TrackEntity>> = trackRepository.likedTracks.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
+
+    val favoriteTracks: StateFlow<List<TrackEntity>> = trackRepository.favoriteTracks.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
+
+    val allPlaylists: StateFlow<List<PlaylistEntity>> = trackRepository.allPlaylists.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
+    val playlists: StateFlow<List<PlaylistEntity>> get() = allPlaylists
+
+    private val _currentNavTab = MutableStateFlow(MainNavigationTab.SONGS)
+    val currentNavTab: StateFlow<MainNavigationTab> = _currentNavTab.asStateFlow()
+
+    private val _selectedPlaylistTarget = MutableStateFlow<PlaylistDetailTarget?>(null)
+    val selectedPlaylistTarget: StateFlow<PlaylistDetailTarget?> = _selectedPlaylistTarget.asStateFlow()
+
+    private val _trackToAddToPlaylist = MutableStateFlow<TrackEntity?>(null)
+    val trackToAddToPlaylist: StateFlow<TrackEntity?> = _trackToAddToPlaylist.asStateFlow()
+
+    private val _isCreatePlaylistOpen = MutableStateFlow(false)
+    val isCreatePlaylistOpen: StateFlow<Boolean> = _isCreatePlaylistOpen.asStateFlow()
+
+    private val _editingPlaylist = MutableStateFlow<PlaylistEntity?>(null)
+    val editingPlaylist: StateFlow<PlaylistEntity?> = _editingPlaylist.asStateFlow()
 
     val displayedTracks: StateFlow<List<TrackEntity>> = combine(allTracksFlow, _searchQuery) { tracks, query ->
         if (query.isBlank()) {
@@ -362,6 +408,156 @@ class MusicPlayerViewModel(
         }
     }
 
+    fun toggleLiked(track: TrackEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val newStatus = !track.isLiked
+            trackRepository.toggleLiked(track.id, newStatus)
+            val updated = track.copy(isLiked = newStatus)
+            AppStorageManager.saveTrackMetadataJson(getApplication(), updated)
+            if (playerManager.currentTrack.value?.id == track.id) {
+                playerManager.updateCurrentTrack(updated)
+            }
+            _snackbarMessage.value = if (newStatus) {
+                "Añadida a 'Me gusta' ❤️"
+            } else {
+                "Eliminada de 'Me gusta'"
+            }
+        }
+    }
+
+    fun toggleFavorite(track: TrackEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val newStatus = !track.isFavorite
+            trackRepository.toggleFavorite(track.id, newStatus)
+            val updated = track.copy(isFavorite = newStatus)
+            AppStorageManager.saveTrackMetadataJson(getApplication(), updated)
+            if (playerManager.currentTrack.value?.id == track.id) {
+                playerManager.updateCurrentTrack(updated)
+            }
+            _snackbarMessage.value = if (newStatus) {
+                "Añadida a 'Mis favoritos' ⭐"
+            } else {
+                "Eliminada de 'Mis favoritos'"
+            }
+        }
+    }
+
+    fun setNavTab(tab: MainNavigationTab) {
+        _currentNavTab.value = tab
+    }
+
+    fun selectNavTab(tab: MainNavigationTab) = setNavTab(tab)
+    fun toggleTrackLiked(track: TrackEntity) = toggleLiked(track)
+    fun toggleTrackFavorite(track: TrackEntity) = toggleFavorite(track)
+
+    fun openPlaylist(target: PlaylistDetailTarget) {
+        _selectedPlaylistTarget.value = target
+    }
+
+    fun closePlaylistDetail() {
+        _selectedPlaylistTarget.value = null
+    }
+
+    fun openAddToPlaylist(track: TrackEntity) {
+        _trackToAddToPlaylist.value = track
+    }
+
+    fun closeAddToPlaylist() {
+        _trackToAddToPlaylist.value = null
+    }
+
+    fun openCreatePlaylist() {
+        _isCreatePlaylistOpen.value = true
+    }
+
+    fun closeCreatePlaylist() {
+        _isCreatePlaylistOpen.value = false
+    }
+
+    fun openEditPlaylist(playlist: PlaylistEntity) {
+        _editingPlaylist.value = playlist
+    }
+
+    fun closeEditPlaylist() {
+        _editingPlaylist.value = null
+    }
+
+    fun createPlaylist(name: String, description: String = "") {
+        if (name.isBlank()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            trackRepository.createPlaylist(name, description)
+            _isCreatePlaylistOpen.value = false
+            _snackbarMessage.value = "Playlist creada: '$name'"
+        }
+    }
+
+    fun updatePlaylist(playlist: PlaylistEntity, newName: String, newDescription: String) {
+        if (newName.isBlank()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            val updated = playlist.copy(name = newName.trim(), description = newDescription.trim())
+            trackRepository.updatePlaylist(updated)
+            _editingPlaylist.value = null
+            if (_selectedPlaylistTarget.value is PlaylistDetailTarget.Custom &&
+                (_selectedPlaylistTarget.value as PlaylistDetailTarget.Custom).playlist.id == playlist.id) {
+                _selectedPlaylistTarget.value = PlaylistDetailTarget.Custom(updated)
+            }
+            _snackbarMessage.value = "Playlist actualizada"
+        }
+    }
+
+    fun deletePlaylist(playlist: PlaylistEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            trackRepository.deletePlaylist(playlist.id)
+            if (_selectedPlaylistTarget.value is PlaylistDetailTarget.Custom &&
+                (_selectedPlaylistTarget.value as PlaylistDetailTarget.Custom).playlist.id == playlist.id) {
+                _selectedPlaylistTarget.value = null
+            }
+            _snackbarMessage.value = "Playlist '${playlist.name}' eliminada"
+        }
+    }
+
+    fun addTrackToPlaylist(playlist: PlaylistEntity, track: TrackEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            trackRepository.addTrackToPlaylist(playlist.id, track.id)
+            _snackbarMessage.value = "Añadida a '${playlist.name}'"
+        }
+    }
+
+    fun removeTrackFromPlaylist(playlistId: Long, track: TrackEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            trackRepository.removeTrackFromPlaylist(playlistId, track.id)
+            _snackbarMessage.value = "Eliminada de la playlist"
+        }
+    }
+
+    fun getTracksForPlaylist(playlistId: Long): kotlinx.coroutines.flow.Flow<List<TrackEntity>> {
+        return trackRepository.getTracksForPlaylist(playlistId)
+    }
+
+    fun getTrackCountForPlaylist(playlistId: Long): kotlinx.coroutines.flow.Flow<Int> {
+        return trackRepository.getTrackCountForPlaylist(playlistId)
+    }
+
+    fun getPlaylistIdsForTrack(trackId: Long): kotlinx.coroutines.flow.Flow<List<Long>> {
+        return trackRepository.getPlaylistIdsForTrack(trackId)
+    }
+
+    fun playPlaylistTracks(tracks: List<TrackEntity>, startTrack: TrackEntity? = null) {
+        if (tracks.isEmpty()) return
+        val start = startTrack ?: tracks.first()
+        playerManager.playTrack(start, tracks)
+    }
+
+    fun playPlaylistTrack(tracks: List<TrackEntity>, startTrack: TrackEntity) = playPlaylistTracks(tracks, startTrack)
+    fun playAllTracksInList(tracks: List<TrackEntity>) = playPlaylistTracks(tracks, tracks.firstOrNull())
+    fun playShuffledInList(tracks: List<TrackEntity>) = playPlaylistShuffled(tracks)
+
+    fun playPlaylistShuffled(tracks: List<TrackEntity>) {
+        if (tracks.isEmpty()) return
+        val shuffled = tracks.shuffled()
+        playerManager.playTrack(shuffled.first(), shuffled)
+    }
+
     fun clearSnackbarMessage() {
         _snackbarMessage.value = null
     }
@@ -375,7 +571,7 @@ class MusicPlayerViewModel(
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             val database = AppDatabase.getDatabase(application)
-            val repository = TrackRepository(database.trackDao())
+            val repository = TrackRepository(database.trackDao(), database.playlistDao())
             val playerManager = AudioPlayerManager.getInstance(application)
             return MusicPlayerViewModel(application, repository, playerManager) as T
         }

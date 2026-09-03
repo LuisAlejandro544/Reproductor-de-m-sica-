@@ -46,6 +46,7 @@ public:
     std::string getLastErrorMsg() const;
     std::string getAudioDeviceInfo() const;
     std::string getStreamStatsJson() const;
+    bool isPlaybackEnded() const;
 
     // oboe::AudioStreamDataCallback
     oboe::DataCallbackResult onAudioReady(
@@ -74,6 +75,8 @@ private:
     std::atomic<int64_t> mCurrentFrameIndex{0};
     std::atomic<bool> mIsPlaying{false};
     std::atomic<bool> mIsInitialized{false};
+    std::atomic<bool> mIsPlaybackEnded{false};
+    std::atomic<bool> mCancelLoading{false};
 
     TenBandEqualizer mEqualizer;
 

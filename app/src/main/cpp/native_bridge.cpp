@@ -85,6 +85,11 @@ Java_com_example_playback_OboeAudioBridge_nativeIsPlaying(JNIEnv* env, jobject /
     return getPlayer()->isPlaying() ? JNI_TRUE : JNI_FALSE;
 }
 
+JNIEXPORT jboolean JNICALL
+Java_com_example_playback_OboeAudioBridge_nativeIsPlaybackEnded(JNIEnv* env, jobject /* this */) {
+    return getPlayer()->isPlaybackEnded() ? JNI_TRUE : JNI_FALSE;
+}
+
 JNIEXPORT void JNICALL
 Java_com_example_playback_OboeAudioBridge_nativeSetEqualizerEnabled(JNIEnv* env, jobject /* this */, jboolean enabled) {
     getPlayer()->setEqualizerEnabled(enabled == JNI_TRUE);

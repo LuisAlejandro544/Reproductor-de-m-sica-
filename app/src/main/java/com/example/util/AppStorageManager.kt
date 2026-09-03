@@ -77,6 +77,8 @@ object AppStorageManager {
                 put("artworkFormat", if (!track.artworkPath.isNullOrBlank()) "image/webp" else "none")
                 put("isArtworkLossless", !track.artworkPath.isNullOrBlank())
                 put("dateAdded", track.dateAdded)
+                put("isLiked", track.isLiked)
+                put("isFavorite", track.isFavorite)
                 put("lastModified", System.currentTimeMillis())
 
                 val artistInfo = JSONObject().apply {

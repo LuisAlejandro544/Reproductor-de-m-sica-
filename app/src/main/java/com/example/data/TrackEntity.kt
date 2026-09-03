@@ -13,5 +13,7 @@ data class TrackEntity(
     val durationMs: Long,
     val filePath: String,
     val artworkPath: String? = null,
-    val dateAdded: Long = System.currentTimeMillis()
+    val dateAdded: Long = System.currentTimeMillis(),
+    val isLiked: Boolean = false,
+    val isFavorite: Boolean = false
 )

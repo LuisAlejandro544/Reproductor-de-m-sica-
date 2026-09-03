@@ -41,9 +41,11 @@ void OboeAudioPlayer::release() {
 bool OboeAudioPlayer::openStream() {
     if (mAudioStream) {
         oboe::StreamState state = mAudioStream->getState();
-        if (state == oboe::StreamState::Open ||
-            state == oboe::StreamState::Started ||
-            state == oboe::StreamState::Paused) {
+        bool compatible = (mAudioStream->getSampleRate() == (mSampleRate > 0 ? mSampleRate : 44100)) &&
+                          (mAudioStream->getChannelCount() == (mChannelCount > 0 ? mChannelCount : 2));
+        if (compatible && (state == oboe::StreamState::Open ||
+                           state == oboe::StreamState::Started ||
+                           state == oboe::StreamState::Paused)) {
             return true;
         }
         closeStream();
@@ -109,29 +111,38 @@ void OboeAudioPlayer::closeStream() {
 }
 
 bool OboeAudioPlayer::loadFile(const std::string& filePath) {
+    // Señalizar cancelación inmediata de cualquier decodificación previa
+    mCancelLoading.store(true);
+
     std::lock_guard<std::mutex> lock(mBufferMutex);
+    mCancelLoading.store(false);
     mIsPlaying.store(false);
+    mIsPlaybackEnded.store(false);
+    mCurrentFrameIndex.store(0);
+
     if (mAudioStream) {
-        mAudioStream->pause();
+        oboe::StreamState state = mAudioStream->getState();
+        if (state == oboe::StreamState::Started) {
+            mAudioStream->requestPause();
+        }
     }
 
     mCurrentFilePath = filePath;
-    mCurrentFrameIndex.store(0);
 
     bool decoded = decodeAudioFile(filePath);
-    if (!decoded) {
-        LOGE("Could not decode audio file: %s", filePath.c_str());
+    if (!decoded || mCancelLoading.load()) {
+        LOGE("Could not decode audio file (cancelled=%d): %s", mCancelLoading.load(), filePath.c_str());
         return false;
     }
 
-    closeStream();
+    // Reutilizar stream de Oboe si la tasa de muestreo y canales coinciden
     if (!openStream()) {
         LOGE("Could not open Oboe stream for decoded audio");
         return false;
     }
 
-    LOGI("Loaded track successfully: frames=%lld, durationMs=%lld",
-         (long long)mTotalFrames, (long long)mDurationMs);
+    LOGI("Loaded track successfully: frames=%lld, durationMs=%lld, rate=%d, channels=%d",
+         (long long)mTotalFrames, (long long)mDurationMs, mSampleRate, mChannelCount);
     return true;
 }
 
@@ -222,16 +233,24 @@ bool OboeAudioPlayer::decodeAudioFile(const std::string& filePath) {
     AMediaCodec_start(codec);
 
     mPcmBuffer.clear();
+    if (durationUs > 0 && sampleRate > 0 && channelCount > 0) {
+        size_t estimatedSamples = static_cast<size_t>((durationUs * sampleRate * channelCount) / 1000000LL);
+        mPcmBuffer.reserve(estimatedSamples + 32768);
+    }
+
     bool sawInputEOS = false;
     bool sawOutputEOS = false;
 
     int emptyDequeueCount = 0;
-    const int maxEmptyDequeues = 200;
+    const int maxEmptyDequeues = 300;
 
-    while (!sawOutputEOS) {
+    while (!sawOutputEOS && !mCancelLoading.load()) {
+        bool progress = false;
+
         if (!sawInputEOS) {
-            ssize_t inputBufIndex = AMediaCodec_dequeueInputBuffer(codec, 5000);
+            ssize_t inputBufIndex = AMediaCodec_dequeueInputBuffer(codec, 0);
             if (inputBufIndex >= 0) {
+                progress = true;
                 size_t bufSize = 0;
                 uint8_t *inputBuf = AMediaCodec_getInputBuffer(codec, inputBufIndex, &bufSize);
                 ssize_t sampleSize = AMediaExtractor_readSampleData(extractor, inputBuf, bufSize);
@@ -249,8 +268,9 @@ bool OboeAudioPlayer::decodeAudioFile(const std::string& filePath) {
         }
 
         AMediaCodecBufferInfo info;
-        ssize_t outputBufIndex = AMediaCodec_dequeueOutputBuffer(codec, &info, 5000);
+        ssize_t outputBufIndex = AMediaCodec_dequeueOutputBuffer(codec, &info, 0);
         if (outputBufIndex >= 0) {
+            progress = true;
             emptyDequeueCount = 0;
             if (info.flags & AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM) {
                 sawOutputEOS = true;
@@ -266,6 +286,7 @@ bool OboeAudioPlayer::decodeAudioFile(const std::string& filePath) {
             }
             AMediaCodec_releaseOutputBuffer(codec, outputBufIndex, false);
         } else if (outputBufIndex == AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED) {
+            progress = true;
             AMediaFormat *newFormat = AMediaCodec_getOutputFormat(codec);
             int32_t newRate = 0;
             int32_t newChannels = 0;
@@ -283,6 +304,10 @@ bool OboeAudioPlayer::decodeAudioFile(const std::string& filePath) {
                 sawOutputEOS = true;
             }
         }
+
+        if (!progress && !sawOutputEOS) {
+            usleep(200);
+        }
     }
 
     AMediaCodec_stop(codec);
@@ -291,10 +316,8 @@ bool OboeAudioPlayer::decodeAudioFile(const std::string& filePath) {
     close(fd);
 
     mTotalFrames = (mChannelCount > 0) ? (mPcmBuffer.size() / mChannelCount) : 0;
-    if (mDurationMs == 0 && mSampleRate > 0) {
-        mDurationMs = (mTotalFrames * 1000) / mSampleRate;
-    }
-    return !mPcmBuffer.empty();
+    mDurationMs = (mSampleRate > 0) ? ((mTotalFrames * 1000) / mSampleRate) : 0;
+    return !mPcmBuffer.empty() && !mCancelLoading.load();
 }
 
 bool OboeAudioPlayer::play() {
@@ -303,6 +326,10 @@ bool OboeAudioPlayer::play() {
     }
     if (!mAudioStream) {
         return false;
+    }
+    mIsPlaybackEnded.store(false);
+    if (mCurrentFrameIndex.load() >= mTotalFrames && mTotalFrames > 0) {
+        mCurrentFrameIndex.store(0);
     }
     oboe::StreamState state = mAudioStream->getState();
     if (state == oboe::StreamState::Started) {
@@ -334,6 +361,7 @@ bool OboeAudioPlayer::pause() {
 bool OboeAudioPlayer::stop() {
     mIsPlaying.store(false);
     mCurrentFrameIndex.store(0);
+    mIsPlaybackEnded.store(false);
     if (mAudioStream) {
         oboe::StreamState state = mAudioStream->getState();
         if (state != oboe::StreamState::Stopped && state != oboe::StreamState::Stopping &&
@@ -350,6 +378,9 @@ bool OboeAudioPlayer::seekTo(int64_t positionMs) {
     int64_t targetFrame = (positionMs * mSampleRate) / 1000;
     targetFrame = std::max<int64_t>(0, std::min<int64_t>(targetFrame, mTotalFrames));
     mCurrentFrameIndex.store(targetFrame);
+    if (targetFrame < mTotalFrames) {
+        mIsPlaybackEnded.store(false);
+    }
     LOGI("Seeked to %lld ms (frame %lld / %lld)", (long long)positionMs,
          (long long)targetFrame, (long long)mTotalFrames);
     return true;
@@ -381,8 +412,9 @@ oboe::DataCallbackResult OboeAudioPlayer::onAudioReady(
 
     if (!mIsPlaying.load() || totalFrames == 0 || currentFrame >= totalFrames) {
         std::memset(output, 0, numFrames * streamChannels * sizeof(int16_t));
-        if (currentFrame >= totalFrames && mIsPlaying.load()) {
+        if (currentFrame >= totalFrames && totalFrames > 0) {
             mIsPlaying.store(false);
+            mIsPlaybackEnded.store(true);
         }
         return oboe::DataCallbackResult::Continue;
     }
@@ -427,8 +459,14 @@ oboe::DataCallbackResult OboeAudioPlayer::onAudioReady(
         std::memset(output + framesToRead * streamChannels, 0, remainingSamples * sizeof(int16_t));
         mCurrentFrameIndex.store(totalFrames);
         mIsPlaying.store(false);
+        mIsPlaybackEnded.store(true);
     } else {
-        mCurrentFrameIndex.store(currentFrame + framesToRead);
+        int64_t nextFrame = currentFrame + framesToRead;
+        mCurrentFrameIndex.store(nextFrame);
+        if (nextFrame >= totalFrames) {
+            mIsPlaying.store(false);
+            mIsPlaybackEnded.store(true);
+        }
     }
 
     // Procesar ecualizador paramétrico de 10 bandas si está activo
@@ -525,5 +563,9 @@ std::string OboeAudioPlayer::getStreamStatsJson() const {
            "\",\"isPlaying\":" + (mIsPlaying.load() ? "true" : "false") +
            ",\"lastErrorCode\":" + std::to_string(getLastErrorCode()) +
            ",\"lastErrorMsg\":\"" + getLastErrorMsg() + "\"}";
+}
+
+bool OboeAudioPlayer::isPlaybackEnded() const {
+    return mIsPlaybackEnded.load();
 }
 

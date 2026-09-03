@@ -431,7 +431,11 @@ class AudioPlayerManager(private val context: Context) {
                     val dur = OboeAudioBridge.nativeGetDuration()
                     _currentPosition.value = pos
                     if (dur > 0) _duration.value = dur
-                    if (dur > 0 && pos >= dur) {
+                    val isEnded = OboeAudioBridge.nativeIsPlaybackEnded() ||
+                            (dur > 0 && pos >= (dur - 250)) ||
+                            (!OboeAudioBridge.nativeIsPlaying() && dur > 0 && pos >= (dur - 1000).coerceAtLeast(0) && _isPlaying.value)
+                    if (isEnded) {
+                        Log.i(TAG, "Oboe track playback completed: pos=$pos, dur=$dur. Handling track transition.")
                         handleTrackEnded()
                         break
                     }
@@ -441,7 +445,7 @@ class AudioPlayerManager(private val context: Context) {
                         _duration.value = exoPlayer.duration
                     }
                 }
-                delay(250)
+                delay(200)
             }
         }
     }

@@ -149,6 +149,11 @@ dependencies {
   debugImplementation(libs.androidx.compose.ui.test.manifest)
   debugImplementation(libs.androidx.compose.ui.tooling)
   debugImplementation(libs.leakcanary.android)
+  implementation(libs.anr.watchdog)
+  debugImplementation(libs.pluto)
+  releaseImplementation(libs.pluto.no.op)
+  debugImplementation(libs.pluto.rooms.db)
+  releaseImplementation(libs.pluto.rooms.db.no.op)
   "ksp"(libs.androidx.room.compiler)
   "ksp"(libs.moshi.kotlin.codegen)
 }
