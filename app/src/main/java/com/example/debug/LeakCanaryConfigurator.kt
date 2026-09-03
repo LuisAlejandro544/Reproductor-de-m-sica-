@@ -30,11 +30,30 @@ object LeakCanaryConfigurator {
                 String::class.java
             )
 
+            val ignoredStaticFieldMethod = try {
+                companion.javaClass.getMethod(
+                    "ignoredStaticField",
+                    String::class.java,
+                    String::class.java
+                )
+            } catch (_: Exception) {
+                null
+            }
+
             // Fugas conocidas del framework del sistema operativo (Android 11 a 14 / ROMs de fabricantes)
             // donde variables globales en código nativo (IPC) retienen Toast$TN y ToastPresenter
             matchers.add(ignoredFieldMethod.invoke(companion, "android.widget.Toast\$TN", "mPresenter"))
             matchers.add(ignoredFieldMethod.invoke(companion, "android.widget.ToastPresenter", "mWindowManager"))
             matchers.add(ignoredFieldMethod.invoke(companion, "android.view.WindowManagerImpl", "mContext"))
+
+            // Fuga del sistema operativo: static ResourcesImpl.mAppContext / sAppContext reteniendo ContextImpl
+            // de servicios de herramientas como HyperionService (GC Root: System Class ResourcesImpl)
+            ignoredStaticFieldMethod?.let { staticMethod ->
+                matchers.add(staticMethod.invoke(companion, "android.content.res.ResourcesImpl", "mAppContext"))
+                matchers.add(staticMethod.invoke(companion, "android.content.res.ResourcesImpl", "sAppContext"))
+                matchers.add(staticMethod.invoke(companion, "android.app.ResourcesManager", "mAppContext"))
+            }
+            matchers.add(ignoredFieldMethod.invoke(companion, "android.app.ContextImpl", "mOuterContext"))
 
             val getConfigMethod = leakCanaryClass.getMethod("getConfig")
             val config = getConfigMethod.invoke(null) ?: return

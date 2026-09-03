@@ -20,6 +20,7 @@ object HyperionHelper {
     fun open(context: Context): Boolean {
         return try {
             val activity = findActivity(context) ?: return false
+            if (activity.isFinishing || activity.isDestroyed) return false
             val hyperionClass = Class.forName("com.willowtreeapps.hyperion.core.Hyperion")
             val openMethod = hyperionClass.getMethod("open", Activity::class.java)
             openMethod.invoke(null, activity)

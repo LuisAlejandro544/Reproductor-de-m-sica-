@@ -5,6 +5,7 @@
 #include <media/NdkMediaExtractor.h>
 #include <media/NdkMediaCodec.h>
 #include "equalizer.h"
+#include "spatial_audio.h"
 #include <string>
 #include <vector>
 #include <atomic>
@@ -45,6 +46,16 @@ public:
     void setEqualizerBandGain(int bandIndex, float gainDb);
     float getEqualizerBandGain(int bandIndex) const;
     void resetEqualizer();
+
+    // Métodos de Audio Espacial 360° / Efecto 8D Nativo (C++ Oboe Exclusivo)
+    void setSpatialAudioEnabled(bool enabled);
+    bool isSpatialAudioEnabled() const;
+    void setSpatialAudioSpeed(float speedHz);
+    float getSpatialAudioSpeed() const;
+    void setSpatialAudioDepth(float depth);
+    float getSpatialAudioDepth() const;
+    void setSpatialAudioReverb(float reverb);
+    float getSpatialAudioReverb() const;
 
     // Diagnósticos y Códigos de Error Crudos para Depuración
     int32_t getLastErrorCode() const;
@@ -89,6 +100,7 @@ private:
     std::thread mDecoderThread;
 
     TenBandEqualizer mEqualizer;
+    SpatialAudio8DProcessor mSpatial8D;
 
     mutable std::mutex mBufferMutex;
     mutable std::mutex mErrorMutex;

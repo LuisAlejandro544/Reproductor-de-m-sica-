@@ -106,6 +106,7 @@ bool OboeAudioPlayer::openStream() {
          mAudioStream->getBufferSizeInFrames(),
          mAudioStream->getAudioApi() == oboe::AudioApi::AAudio ? "AAudio" : "OpenSLES");
     mEqualizer.setSampleRate(static_cast<float>(mAudioStream->getSampleRate()));
+    mSpatial8D.setSampleRate(static_cast<float>(mAudioStream->getSampleRate()));
     return true;
 }
 
@@ -632,6 +633,7 @@ oboe::DataCallbackResult OboeAudioPlayer::onAudioReady(
     // Procesar ecualizador paramétrico de 10 bandas si está activo
     if (framesToRead > 0) {
         mEqualizer.process(output, framesToRead, streamChannels);
+        mSpatial8D.process(output, framesToRead, streamChannels);
     }
 
     // Procesar volumen / ganancia de salida
@@ -669,6 +671,39 @@ float OboeAudioPlayer::getEqualizerBandGain(int bandIndex) const {
 void OboeAudioPlayer::resetEqualizer() {
     mEqualizer.resetGains();
     LOGI("OboeAudioPlayer: Equalizer reset to flat");
+}
+
+void OboeAudioPlayer::setSpatialAudioEnabled(bool enabled) {
+    mSpatial8D.setEnabled(enabled);
+    LOGI("OboeAudioPlayer: Spatial 360/8D audio %s", enabled ? "ENABLED" : "DISABLED");
+}
+
+bool OboeAudioPlayer::isSpatialAudioEnabled() const {
+    return mSpatial8D.isEnabled();
+}
+
+void OboeAudioPlayer::setSpatialAudioSpeed(float speedHz) {
+    mSpatial8D.setRotationSpeed(speedHz);
+}
+
+float OboeAudioPlayer::getSpatialAudioSpeed() const {
+    return mSpatial8D.getRotationSpeed();
+}
+
+void OboeAudioPlayer::setSpatialAudioDepth(float depth) {
+    mSpatial8D.setSpatialDepth(depth);
+}
+
+float OboeAudioPlayer::getSpatialAudioDepth() const {
+    return mSpatial8D.getSpatialDepth();
+}
+
+void OboeAudioPlayer::setSpatialAudioReverb(float reverb) {
+    mSpatial8D.setRoomReverb(reverb);
+}
+
+float OboeAudioPlayer::getSpatialAudioReverb() const {
+    return mSpatial8D.getRoomReverb();
 }
 
 void OboeAudioPlayer::onErrorAfterClose(oboe::AudioStream *oboeStream, oboe::Result error) {

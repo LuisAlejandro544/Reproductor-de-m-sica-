@@ -120,6 +120,21 @@ class MusicPlayerViewModel(
     private val _isEqualizerOpen = MutableStateFlow(false)
     val isEqualizerOpen: StateFlow<Boolean> = _isEqualizerOpen.asStateFlow()
 
+    // Audio Espacial 360° / Efecto 8D Nativo en C++ (Oboe Exclusivo)
+    val isSpatialAudioEnabled: StateFlow<Boolean> = playerManager.isSpatialAudioEnabled
+    val spatialAudioSpeed: StateFlow<Float> = playerManager.spatialAudioSpeed
+    val spatialAudioDepth: StateFlow<Float> = playerManager.spatialAudioDepth
+    val spatialAudioReverb: StateFlow<Float> = playerManager.spatialAudioReverb
+
+    private val _isSpatialAudioModalOpen = MutableStateFlow(false)
+    val isSpatialAudioModalOpen: StateFlow<Boolean> = _isSpatialAudioModalOpen.asStateFlow()
+
+    // Temporizador de Sueño (Sleep Timer)
+    val sleepTimerStatus: StateFlow<com.example.playback.SleepTimerStatus> = playerManager.sleepTimerManager.status
+
+    private val _isSleepTimerModalOpen = MutableStateFlow(false)
+    val isSleepTimerModalOpen: StateFlow<Boolean> = _isSleepTimerModalOpen.asStateFlow()
+
     private val _showEngineDialog = MutableStateFlow(!playerManager.hasPromptedEngineSelection())
     val showEngineDialog: StateFlow<Boolean> = _showEngineDialog.asStateFlow()
 
@@ -299,6 +314,63 @@ class MusicPlayerViewModel(
 
     fun resetEqualizer() {
         playerManager.resetEqualizer()
+    }
+
+    // Métodos para Audio Espacial 360° / Efecto 8D Nativo (C++ Oboe)
+    fun openSpatialAudioModal() {
+        _isSpatialAudioModalOpen.value = true
+    }
+
+    fun closeSpatialAudioModal() {
+        _isSpatialAudioModalOpen.value = false
+    }
+
+    fun setSpatialAudioEnabled(enabled: Boolean) {
+        playerManager.setSpatialAudioEnabled(enabled)
+        _snackbarMessage.value = if (enabled) "Efecto 8D / 360° C++ Activado" else "Efecto 8D / 360° Desactivado"
+    }
+
+    fun setSpatialAudioSpeed(speedHz: Float) {
+        playerManager.setSpatialAudioSpeed(speedHz)
+    }
+
+    fun setSpatialAudioDepth(depth: Float) {
+        playerManager.setSpatialAudioDepth(depth)
+    }
+
+    fun setSpatialAudioReverb(reverb: Float) {
+        playerManager.setSpatialAudioReverb(reverb)
+    }
+
+    // Métodos para Temporizador de Sueño
+    fun openSleepTimerModal() {
+        _isSleepTimerModalOpen.value = true
+    }
+
+    fun closeSleepTimerModal() {
+        _isSleepTimerModalOpen.value = false
+    }
+
+    fun startSleepTimer(minutes: Int) {
+        playerManager.startSleepTimer(minutes)
+        _isSleepTimerModalOpen.value = false
+        _snackbarMessage.value = "Temporizador de apagado configurado: $minutes min"
+    }
+
+    fun startEndOfTrackSleepTimer() {
+        playerManager.startEndOfTrackSleepTimer()
+        _isSleepTimerModalOpen.value = false
+        _snackbarMessage.value = "Temporizador configurado: Al terminar la canción actual"
+    }
+
+    fun addSleepTimerMinutes(minutes: Int) {
+        playerManager.addSleepTimerMinutes(minutes)
+        _snackbarMessage.value = "+$minutes min añadidos al temporizador"
+    }
+
+    fun cancelSleepTimer() {
+        playerManager.cancelSleepTimer()
+        _snackbarMessage.value = "Temporizador de sueño cancelado"
     }
 
     fun setShowEngineDialog(show: Boolean) {

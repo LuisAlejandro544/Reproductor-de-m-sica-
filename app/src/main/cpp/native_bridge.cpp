@@ -128,6 +128,47 @@ Java_com_example_playback_OboeAudioBridge_nativeResetEqualizer(JNIEnv* env, jobj
     gMedia3Equalizer.resetGains();
 }
 
+// Funciones JNI para Audio Espacial 360° / Efecto 8D Nativo (C++ Oboe)
+JNIEXPORT void JNICALL
+Java_com_example_playback_OboeAudioBridge_nativeSetSpatialAudioEnabled(JNIEnv* env, jobject /* this */, jboolean enabled) {
+    getPlayer()->setSpatialAudioEnabled(enabled == JNI_TRUE);
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_example_playback_OboeAudioBridge_nativeIsSpatialAudioEnabled(JNIEnv* env, jobject /* this */) {
+    return getPlayer()->isSpatialAudioEnabled() ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT void JNICALL
+Java_com_example_playback_OboeAudioBridge_nativeSetSpatialAudioSpeed(JNIEnv* env, jobject /* this */, jfloat speedHz) {
+    getPlayer()->setSpatialAudioSpeed(static_cast<float>(speedHz));
+}
+
+JNIEXPORT jfloat JNICALL
+Java_com_example_playback_OboeAudioBridge_nativeGetSpatialAudioSpeed(JNIEnv* env, jobject /* this */) {
+    return static_cast<jfloat>(getPlayer()->getSpatialAudioSpeed());
+}
+
+JNIEXPORT void JNICALL
+Java_com_example_playback_OboeAudioBridge_nativeSetSpatialAudioDepth(JNIEnv* env, jobject /* this */, jfloat depth) {
+    getPlayer()->setSpatialAudioDepth(static_cast<float>(depth));
+}
+
+JNIEXPORT jfloat JNICALL
+Java_com_example_playback_OboeAudioBridge_nativeGetSpatialAudioDepth(JNIEnv* env, jobject /* this */) {
+    return static_cast<jfloat>(getPlayer()->getSpatialAudioDepth());
+}
+
+JNIEXPORT void JNICALL
+Java_com_example_playback_OboeAudioBridge_nativeSetSpatialAudioReverb(JNIEnv* env, jobject /* this */, jfloat reverb) {
+    getPlayer()->setSpatialAudioReverb(static_cast<float>(reverb));
+}
+
+JNIEXPORT jfloat JNICALL
+Java_com_example_playback_OboeAudioBridge_nativeGetSpatialAudioReverb(JNIEnv* env, jobject /* this */) {
+    return static_cast<jfloat>(getPlayer()->getSpatialAudioReverb());
+}
+
 JNIEXPORT void JNICALL
 Java_com_example_playback_OboeAudioBridge_nativeMedia3ProcessDirect(
     JNIEnv* env, jobject /* this */,

@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
@@ -50,6 +51,7 @@ import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material.icons.filled.SurroundSound
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -104,6 +106,10 @@ fun FullPlayerView(
     activeEngine: AudioEngineType,
     isEqualizerEnabled: Boolean = false,
     onOpenEqualizer: () -> Unit = {},
+    isSpatialAudioEnabled: Boolean = false,
+    onOpenSpatialAudio: () -> Unit = {},
+    sleepTimerStatus: com.example.playback.SleepTimerStatus = com.example.playback.SleepTimerStatus(),
+    onOpenSleepTimer: () -> Unit = {},
     onCollapse: () -> Unit,
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
@@ -290,6 +296,43 @@ fun FullPlayerView(
                                     onClick = {
                                         menuExpanded = false
                                         onOpenEqualizer()
+                                    }
+                                )
+                                // Opción de Audio Espacial 360° / 8D Nativo (C++ Oboe) - SOLO visible con OBOE_CPP
+                                if (activeEngine == AudioEngineType.OBOE_CPP) {
+                                    DropdownMenuItem(
+                                        text = { Text("Audio Espacial 360° (8D C++)", color = TextPrimary) },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Default.SurroundSound,
+                                                contentDescription = null,
+                                                tint = if (isSpatialAudioEnabled) GreenAccent else TextSecondary
+                                            )
+                                        },
+                                        onClick = {
+                                            menuExpanded = false
+                                            onOpenSpatialAudio()
+                                        }
+                                    )
+                                }
+                                // Opción de Temporizador de Sueño
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = if (sleepTimerStatus.isActive) "Temporizador (${sleepTimerStatus.formattedRemaining})" else "Temporizador de sueño",
+                                            color = if (sleepTimerStatus.isActive) GreenAccent else TextPrimary
+                                        )
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.Bedtime,
+                                            contentDescription = null,
+                                            tint = if (sleepTimerStatus.isActive) GreenAccent else TextSecondary
+                                        )
+                                    },
+                                    onClick = {
+                                        menuExpanded = false
+                                        onOpenSleepTimer()
                                     }
                                 )
                                 DropdownMenuItem(
@@ -650,7 +693,7 @@ fun FullPlayerView(
                     }
 
                     // Botón de Ecualizador: Activo para ambos motores (C++ DSP en Oboe y Media3)
-                    Spacer(modifier = Modifier.width(16.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
                     IconButton(
                         onClick = onOpenEqualizer,
                         modifier = Modifier
@@ -665,8 +708,42 @@ fun FullPlayerView(
                         )
                     }
 
+                    // Botón de Audio Espacial 360° / 8D C++ (SOLO SI EL MOTOR ES OBOE_CPP)
+                    if (activeEngine == AudioEngineType.OBOE_CPP) {
+                        Spacer(modifier = Modifier.width(12.dp))
+                        IconButton(
+                            onClick = onOpenSpatialAudio,
+                            modifier = Modifier
+                                .size(48.dp)
+                                .testTag("full_player_spatial_audio_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.SurroundSound,
+                                contentDescription = "Audio Espacial 360° (8D C++)",
+                                tint = if (isSpatialAudioEnabled) GreenAccent else TextSecondary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+
+                    // Botón de Temporizador de Sueño
+                    Spacer(modifier = Modifier.width(12.dp))
+                    IconButton(
+                        onClick = onOpenSleepTimer,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .testTag("full_player_sleep_timer_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Bedtime,
+                            contentDescription = "Temporizador de Sueño",
+                            tint = if (sleepTimerStatus.isActive) GreenAccent else TextSecondary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+
                     // Botón de Letras (Lyrics)
-                    Spacer(modifier = Modifier.width(16.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
                     IconButton(
                         onClick = { showLyrics = !showLyrics },
                         modifier = Modifier

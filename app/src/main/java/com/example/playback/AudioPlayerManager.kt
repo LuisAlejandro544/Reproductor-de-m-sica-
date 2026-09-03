@@ -53,6 +53,10 @@ class AudioPlayerManager(private val context: Context) {
         private const val PREFS_NAME = "ritmo_audio_prefs"
         private const val KEY_AUDIO_ENGINE = "selected_audio_engine"
         private const val KEY_ENGINE_PROMPTED = "engine_selection_prompted"
+        private const val KEY_SPATIAL_AUDIO_ENABLED = "spatial_audio_enabled"
+        private const val KEY_SPATIAL_AUDIO_SPEED = "spatial_audio_speed"
+        private const val KEY_SPATIAL_AUDIO_DEPTH = "spatial_audio_depth"
+        private const val KEY_SPATIAL_AUDIO_REVERB = "spatial_audio_reverb"
 
         @Volatile
         private var instance: AudioPlayerManager? = null
@@ -114,10 +118,34 @@ class AudioPlayerManager(private val context: Context) {
     val isEqualizerEnabled: StateFlow<Boolean> = equalizerController.isEqualizerEnabled
     val equalizerBandGains: StateFlow<List<Float>> = equalizerController.equalizerBandGains
 
+    // Temporizador de Sueño (Sleep Timer) desacoplado
+    val sleepTimerManager = SleepTimerManager(
+        onPausePlayback = { pause() },
+        onSetVolume = { vol -> setOutputVolume(vol) },
+        onGetVolume = { getOutputVolume() }
+    )
+
+    // Audio Espacial 360° / Efecto 8D Nativo en C++ (Oboe Exclusivo)
+    private val _isSpatialAudioEnabled = MutableStateFlow(sharedPrefs.getBoolean(KEY_SPATIAL_AUDIO_ENABLED, false))
+    val isSpatialAudioEnabled: StateFlow<Boolean> = _isSpatialAudioEnabled.asStateFlow()
+
+    private val _spatialAudioSpeed = MutableStateFlow(sharedPrefs.getFloat(KEY_SPATIAL_AUDIO_SPEED, 0.08f))
+    val spatialAudioSpeed: StateFlow<Float> = _spatialAudioSpeed.asStateFlow()
+
+    private val _spatialAudioDepth = MutableStateFlow(sharedPrefs.getFloat(KEY_SPATIAL_AUDIO_DEPTH, 0.85f))
+    val spatialAudioDepth: StateFlow<Float> = _spatialAudioDepth.asStateFlow()
+
+    private val _spatialAudioReverb = MutableStateFlow(sharedPrefs.getFloat(KEY_SPATIAL_AUDIO_REVERB, 0.22f))
+    val spatialAudioReverb: StateFlow<Float> = _spatialAudioReverb.asStateFlow()
+
     init {
-        // Inicializar Oboe y sincronizar ecualizador
+        // Inicializar Oboe y sincronizar ecualizador y audio espacial
         if (OboeAudioBridge.isNativeReady()) {
             OboeAudioBridge.nativeInit()
+            OboeAudioBridge.setSpatialAudioEnabledSafe(_isSpatialAudioEnabled.value)
+            OboeAudioBridge.setSpatialAudioSpeedSafe(_spatialAudioSpeed.value)
+            OboeAudioBridge.setSpatialAudioDepthSafe(_spatialAudioDepth.value)
+            OboeAudioBridge.setSpatialAudioReverbSafe(_spatialAudioReverb.value)
         }
         equalizerController.initialize()
 
@@ -181,6 +209,58 @@ class AudioPlayerManager(private val context: Context) {
     fun setEqualizerBandGain(bandIndex: Int, gainDb: Float) = equalizerController.setEqualizerBandGain(bandIndex, gainDb)
     fun setEqualizerPreset(preset: EqualizerPreset) = equalizerController.setEqualizerPreset(preset)
     fun resetEqualizer() = equalizerController.resetEqualizer()
+
+    // Funciones de volumen maestro con soporte para desvanecimiento suave (fade)
+    fun setOutputVolume(vol: Float) {
+        val clampedVol = vol.coerceIn(0.0f, 1.0f)
+        exoPlayer.volume = clampedVol
+        if (OboeAudioBridge.isNativeReady()) {
+            OboeAudioBridge.nativeSetVolume(clampedVol)
+        }
+    }
+
+    fun getOutputVolume(): Float {
+        return if (_activeEngine.value == AudioEngineType.OBOE_CPP && OboeAudioBridge.isNativeReady()) {
+            OboeAudioBridge.nativeGetVolume()
+        } else {
+            exoPlayer.volume
+        }
+    }
+
+    // Funciones de Audio Espacial 360° / Efecto 8D Nativo (C++ Oboe)
+    fun setSpatialAudioEnabled(enabled: Boolean) {
+        _isSpatialAudioEnabled.value = enabled
+        sharedPrefs.edit().putBoolean(KEY_SPATIAL_AUDIO_ENABLED, enabled).apply()
+        OboeAudioBridge.setSpatialAudioEnabledSafe(enabled)
+        Log.i(TAG, "Audio Espacial 360/8D configurado: $enabled")
+    }
+
+    fun setSpatialAudioSpeed(speedHz: Float) {
+        val clamped = speedHz.coerceIn(0.01f, 0.5f)
+        _spatialAudioSpeed.value = clamped
+        sharedPrefs.edit().putFloat(KEY_SPATIAL_AUDIO_SPEED, clamped).apply()
+        OboeAudioBridge.setSpatialAudioSpeedSafe(clamped)
+    }
+
+    fun setSpatialAudioDepth(depth: Float) {
+        val clamped = depth.coerceIn(0.1f, 1.0f)
+        _spatialAudioDepth.value = clamped
+        sharedPrefs.edit().putFloat(KEY_SPATIAL_AUDIO_DEPTH, clamped).apply()
+        OboeAudioBridge.setSpatialAudioDepthSafe(clamped)
+    }
+
+    fun setSpatialAudioReverb(reverb: Float) {
+        val clamped = reverb.coerceIn(0.0f, 0.6f)
+        _spatialAudioReverb.value = clamped
+        sharedPrefs.edit().putFloat(KEY_SPATIAL_AUDIO_REVERB, clamped).apply()
+        OboeAudioBridge.setSpatialAudioReverbSafe(clamped)
+    }
+
+    // Funciones del Temporizador de Sueño (Sleep Timer)
+    fun startSleepTimer(minutes: Int) = sleepTimerManager.startTimer(minutes)
+    fun startEndOfTrackSleepTimer() = sleepTimerManager.startEndOfTrackTimer()
+    fun addSleepTimerMinutes(minutes: Int) = sleepTimerManager.addMinutes(minutes)
+    fun cancelSleepTimer() = sleepTimerManager.cancelTimer()
 
     private fun applyEqualizerToEngines(enabled: Boolean, gains: List<Float>) {
         if (OboeAudioBridge.isNativeReady()) {
@@ -466,6 +546,14 @@ class AudioPlayerManager(private val context: Context) {
     }
 
     private fun handleTrackEnded() {
+        // Notificar al temporizador de sueño si está configurado en modo fin de pista
+        if (sleepTimerManager.status.value.isActive && sleepTimerManager.status.value.isEndOfTrack) {
+            sleepTimerManager.onTrackFinished()
+            _isPlaying.value = false
+            stopProgressTracker()
+            return
+        }
+
         when (repeatMode.value) {
             PlaybackRepeatMode.ONE -> {
                 seekTo(0L)
@@ -496,6 +584,7 @@ class AudioPlayerManager(private val context: Context) {
     fun release() {
         playJob?.cancel()
         stopProgressTracker()
+        sleepTimerManager.cancelTimer()
         exoPlayer.release()
         if (OboeAudioBridge.isNativeReady()) {
             OboeAudioBridge.nativeRelease()

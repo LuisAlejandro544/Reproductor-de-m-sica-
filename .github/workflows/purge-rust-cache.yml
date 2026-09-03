@@ -1,0 +1,41 @@
+name: Purgar Rust Target del Historial Git
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  purge-target:
+    name: Purgar app/src/main/rust/target del historial
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clonar repositorio completo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configurar Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Instalar git-filter-repo
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git-filter-repo
+
+      - name: Filtrar y eliminar artefactos target del historial
+        run: |
+          git-filter-repo --path app/src/main/rust/target --invert-paths --force
+
+      - name: Recolectar basura y compactar repositorio
+        run: |
+          git reflog expire --expire=now --all
+          git gc --prune=now --aggressive
+
+      - name: Forzar actualización en remoto (todas las ramas y tags)
+        run: |
+          git push origin --force --all
+          git push origin --force --tags

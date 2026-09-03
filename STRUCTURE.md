@@ -53,7 +53,8 @@ Este documento detalla la arquitectura de software, la organización de director
 ├── .github/
 │   └── workflows/
 │       ├── build-debug-apk.yml       # Compilación limpia y descarga de dependencias de Rust (cargo fetch)
-│       └── override-commit-message.yml
+│       ├── override-commit-message.yml
+│       └── purge-rust-cache.yml      # Purga manual de artefactos target del historial Git con git-filter-repo
 ├── AGENTS.md                         # Directrices obligatorias para agentes de IA
 ├── AI_CONTEXT.md                     # Contexto técnico y operativo del proyecto
 ├── README.md                         # Descripción general, características y guía de compilación

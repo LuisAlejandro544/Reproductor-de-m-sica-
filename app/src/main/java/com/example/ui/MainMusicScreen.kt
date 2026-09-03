@@ -58,6 +58,8 @@ import com.example.ui.components.FullPlayerView
 import com.example.ui.components.MiniPlayer
 import com.example.ui.components.RawErrorDialog
 import com.example.ui.components.RoomDatabaseInspectorModal
+import com.example.ui.components.SleepTimerModal
+import com.example.ui.components.SpatialAudio8DModal
 import com.example.ui.main.EmptyLibraryView
 import com.example.ui.main.MainProgressBanners
 import com.example.ui.main.MainSearchBar
@@ -110,6 +112,15 @@ fun MainMusicScreen(
     val isEqualizerOpen by viewModel.isEqualizerOpen.collectAsStateWithLifecycle()
     val isEqualizerEnabled by viewModel.isEqualizerEnabled.collectAsStateWithLifecycle()
     val equalizerBandGains by viewModel.equalizerBandGains.collectAsStateWithLifecycle()
+
+    val isSpatialAudioModalOpen by viewModel.isSpatialAudioModalOpen.collectAsStateWithLifecycle()
+    val isSpatialAudioEnabled by viewModel.isSpatialAudioEnabled.collectAsStateWithLifecycle()
+    val spatialAudioSpeed by viewModel.spatialAudioSpeed.collectAsStateWithLifecycle()
+    val spatialAudioDepth by viewModel.spatialAudioDepth.collectAsStateWithLifecycle()
+    val spatialAudioReverb by viewModel.spatialAudioReverb.collectAsStateWithLifecycle()
+
+    val isSleepTimerModalOpen by viewModel.isSleepTimerModalOpen.collectAsStateWithLifecycle()
+    val sleepTimerStatus by viewModel.sleepTimerStatus.collectAsStateWithLifecycle()
 
     val editingTrack by viewModel.editingTrack.collectAsStateWithLifecycle()
     val isDebugConsoleOpen by viewModel.isDebugConsoleOpen.collectAsStateWithLifecycle()
@@ -410,6 +421,10 @@ fun MainMusicScreen(
                         activeEngine = activeEngine,
                         isEqualizerEnabled = isEqualizerEnabled,
                         onOpenEqualizer = { viewModel.openEqualizer() },
+                        isSpatialAudioEnabled = isSpatialAudioEnabled,
+                        onOpenSpatialAudio = { viewModel.openSpatialAudioModal() },
+                        sleepTimerStatus = sleepTimerStatus,
+                        onOpenSleepTimer = { viewModel.openSleepTimerModal() },
                         onCollapse = { viewModel.setPlayerExpanded(false) },
                         onPlayPause = { viewModel.playPause() },
                         onNext = { viewModel.next() },
@@ -451,6 +466,31 @@ fun MainMusicScreen(
                 onDismiss = {
                     viewModel.closeEqualizer()
                 }
+            )
+
+            // Modal de Audio Espacial 360° / Efecto 8D Nativo C++ (Oboe Exclusivo)
+            SpatialAudio8DModal(
+                isOpen = isSpatialAudioModalOpen,
+                isEnabled = isSpatialAudioEnabled,
+                speedHz = spatialAudioSpeed,
+                depth = spatialAudioDepth,
+                reverb = spatialAudioReverb,
+                onToggleEnabled = { viewModel.setSpatialAudioEnabled(it) },
+                onSpeedChange = { viewModel.setSpatialAudioSpeed(it) },
+                onDepthChange = { viewModel.setSpatialAudioDepth(it) },
+                onReverbChange = { viewModel.setSpatialAudioReverb(it) },
+                onDismiss = { viewModel.closeSpatialAudioModal() }
+            )
+
+            // Modal del Temporizador de Sueño
+            SleepTimerModal(
+                isOpen = isSleepTimerModalOpen,
+                status = sleepTimerStatus,
+                onStartTimer = { viewModel.startSleepTimer(it) },
+                onStartEndOfTrack = { viewModel.startEndOfTrackSleepTimer() },
+                onAddMinutes = { viewModel.addSleepTimerMinutes(it) },
+                onCancelTimer = { viewModel.cancelSleepTimer() },
+                onDismiss = { viewModel.closeSleepTimerModal() }
             )
 
             // Pantalla de Ajustes (Completa con animación horizontal)

@@ -44,6 +44,56 @@ object OboeAudioBridge {
     external fun nativeGetEqualizerBandGain(bandIndex: Int): Float
     external fun nativeResetEqualizer()
 
+    // Audio Espacial 360° / Efecto 8D Nativo en C++ (Oboe Exclusivo)
+    external fun nativeSetSpatialAudioEnabled(enabled: Boolean)
+    external fun nativeIsSpatialAudioEnabled(): Boolean
+    external fun nativeSetSpatialAudioSpeed(speedHz: Float)
+    external fun nativeGetSpatialAudioSpeed(): Float
+    external fun nativeSetSpatialAudioDepth(depth: Float)
+    external fun nativeGetSpatialAudioDepth(): Float
+    external fun nativeSetSpatialAudioReverb(reverb: Float)
+    external fun nativeGetSpatialAudioReverb(): Float
+
+    fun setSpatialAudioEnabledSafe(enabled: Boolean) {
+        if (isLibraryLoaded) {
+            try { nativeSetSpatialAudioEnabled(enabled) } catch (_: Throwable) {}
+        }
+    }
+
+    fun isSpatialAudioEnabledSafe(): Boolean = if (isLibraryLoaded) {
+        try { nativeIsSpatialAudioEnabled() } catch (_: Throwable) { false }
+    } else false
+
+    fun setSpatialAudioSpeedSafe(speedHz: Float) {
+        if (isLibraryLoaded) {
+            try { nativeSetSpatialAudioSpeed(speedHz) } catch (_: Throwable) {}
+        }
+    }
+
+    fun getSpatialAudioSpeedSafe(): Float = if (isLibraryLoaded) {
+        try { nativeGetSpatialAudioSpeed() } catch (_: Throwable) { 0.08f }
+    } else 0.08f
+
+    fun setSpatialAudioDepthSafe(depth: Float) {
+        if (isLibraryLoaded) {
+            try { nativeSetSpatialAudioDepth(depth) } catch (_: Throwable) {}
+        }
+    }
+
+    fun getSpatialAudioDepthSafe(): Float = if (isLibraryLoaded) {
+        try { nativeGetSpatialAudioDepth() } catch (_: Throwable) { 0.85f }
+    } else 0.85f
+
+    fun setSpatialAudioReverbSafe(reverb: Float) {
+        if (isLibraryLoaded) {
+            try { nativeSetSpatialAudioReverb(reverb) } catch (_: Throwable) {}
+        }
+    }
+
+    fun getSpatialAudioReverbSafe(): Float = if (isLibraryLoaded) {
+        try { nativeGetSpatialAudioReverb() } catch (_: Throwable) { 0.22f }
+    } else 0.22f
+
     // Procesamiento PCM para Media3 / ExoPlayer (Filtros Biquad IIR en C++)
     external fun nativeMedia3ProcessDirect(
         byteBuffer: ByteBuffer,

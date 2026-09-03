@@ -10,9 +10,26 @@
 /.idea/assetWizardSettings.xml
 .DS_Store
 /build
+build/
 /captures
 .externalNativeBuild
 .cxx
 local.properties
 .env
 debug.keystore
+.build-outputs/
+
+# Rust build artifacts
+target/
+**/target/
+**/*.rs.bk
+
+# CMake & C++ artifacts
+cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+
+# Android generated files
+*.apk
+*.aab
+
