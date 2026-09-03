@@ -7,35 +7,37 @@ Este archivo proporciona todo el contexto técnico, restricciones de diseño, pe
 ## 🧭 Visión del Proyecto
 - **Nombre:** Ritmo
 - **Naturaleza:** Reproductor de audio local para Android con enfoque estricto en privacidad, alto rendimiento y fidelidad sonora.
-- **Filosofía:** El usuario tiene soberanía total sobre sus archivos. La app **no** escanea de fondo ni solicita permisos abusivos; solo maneja los archivos que el usuario importa selectivamente.
-- **Doble Motor:** Soporta cambio en tiempo real entre el motor estándar de Android (**ExoPlayer / Media3**) y un motor nativo de ultra baja latencia (**Oboe C++ / AAudio**), con arquitectura preparada para **Rust**.
-- **Gestión de Configuración:** El diálogo inicial de motor solo se muestra en el primer inicio tras la instalación. Una vez definido, el usuario administra el motor y la biblioteca a través de la pantalla independiente de Configuración (`SettingsScreen.kt`) o mediante el chip interactivo de la cabecera.
+- **Filosofía:** El usuario tiene soberanía total sobre sus archivos. La app **no** escanea de fondo ni solicita permisos invasivos; solo indexa y almacena localmente los archivos que el usuario importa selectivamente mediante el selector seguro de Android.
+- **Doble Motor:** Soporta conmutación en caliente entre el motor estándar de Android (**ExoPlayer / Media3**) y un motor nativo de ultra baja latencia (**Oboe C++ / AAudio**), con arquitectura preparada para **Rust**.
+- **Ecualizador de 10 Bandas en C++ (Doble Motor):** Cuenta con un ecualizador de 10 bandas con filtros Biquad IIR a nivel de muestra PCM en C++. Está disponible de manera unificada tanto en el motor Oboe (procesamiento directo en callback de audio) como en Media3/ExoPlayer (mediante `Media3EqualizerAudioProcessor`), garantizando exactamente la misma respuesta acústica y preajustes sonoros independientemente del motor seleccionado.
+- **Reproducción en Segundo Plano:** Implementada con `RitmoMediaSessionService` para permitir control continuo desde la barra de notificaciones, pantalla de bloqueo y accesorios Bluetooth.
+- **Animaciones Fluidas:** Transiciones y animaciones cuidadas con Jetpack Compose (`AnimatedContent`, curvas `FastOutSlowInEasing`, escalado elástico `spring` y barras visualizadoras animadas en tiempo real).
 
 ---
 
 ## 👤 Perfil del Usuario y Restricciones Operativas
 
 1. **Dispositivo del Usuario:**
-   - El usuario **no tiene PC**, únicamente utiliza su teléfono móvil para interactuar con la app y el entorno.
-   - Toda la interfaz, navegación y controles deben ser ergonómicos, cómodos y 100% funcionales para una sola mano en pantallas táctiles móviles.
+   - El usuario **no tiene PC**, únicamente utiliza su smartphone para programar, gestionar e interactuar con la app y el entorno.
+   - Toda la interfaz, navegación y controles deben ser ergonómicos, cómodos y 100% accesibles para una sola mano en pantallas táctiles móviles (tamaño táctil mínimo de 48dp).
 
 2. **Canal de Distribución:**
    - La aplicación no se subirá a Google Play Store; se distribuirá directamente como archivo APK en tiendas de terceros como **Uptodown** o descarga directa.
-   - No asumir servicios privativos de Google Play (Google Play Licensing, In-App Billing de Play, etc.). La app debe ser 100% autónoma y offline.
+   - No depender de servicios privativos de Google Play (Play Licensing, In-App Billing, etc.). La app debe ser 100% autónoma y offline.
 
 3. **Política de Peso vs. Dependencias:**
    - Al usuario **no le preocupa el tamaño final del archivo APK**, siempre y cuando las dependencias sean 100% funcionales y aporten valor real.
    - Evitar soluciones "inventadas desde cero sin dependencias" cuando existan librerías estándar y probadas en la industria (usar dependencias robustas y consolidadas).
 
 4. **Reglas sobre Lenguajes Compilados (C++, Rust, Kotlin):**
-   - Si se integra C++, Rust o Python, **deben estar incluidos y configurados obligatoriamente en el pipeline de Gradle (`gradlew`)**. No deben saltarse ni omitirse.
+   - Si se integra C++, Rust o módulos nativos, **deben estar incluidos y configurados obligatoriamente en el pipeline de Gradle (`build.gradle.kts`, CMakeLists.txt)**. No deben saltarse ni omitirse.
    - No usar funciones de reemplazo provisional (*fallback*) de Kotlin si se solicitó o diseñó la funcionalidad con un framework nativo específico.
 
 5. **Protección de Propiedad Intelectual:**
    - Evitar en todo momento nombrar archivos o identificadores con marcas registradas protegidas por derechos de autor que puedan poner al usuario en riesgo.
 
 6. **Información y Mensajes de Commit:**
-   - Si existe algún archivo `commit_message.txt`, su información siempre debe redactarse en español y no debe alterarse a menos que el usuario lo solicite expresamente.
+   - La información de `commit_message.txt` siempre debe redactarse en español y solo actualizarse cuando el usuario lo pida expresamente.
 
 ---
 

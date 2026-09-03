@@ -11,7 +11,7 @@ Este archivo es leído automáticamente por los agentes de IA en cada sesión pa
 
 2. **Entorno del Usuario (Móvil, sin PC):**
    - El usuario programa y gestiona el proyecto desde un smartphone.
-   - Asegura siempre que los controles táctiles respeten el tamaño mínimo de 48dp, con espaciado amplio y navegación fluida con una mano.
+   - Asegura siempre que los controles táctiles respeten el tamaño mínimo de 48dp, con espaciado amplio y navegación fluida con una sola mano.
    - En caso de crear herramientas auxiliares, no usar configuraciones tipo `persist.sys.*`.
 
 3. **Canal de Distribución Independiente:**
@@ -34,11 +34,15 @@ Este archivo es leído automáticamente por los agentes de IA en cada sesión pa
 
 ---
 
-## 🎼 Arquitectura de Audio Dual
+## 🎼 Arquitectura de Audio Dual y Procesamiento DSP
 
 - **Motor Estándar:** `AudioEngineType.EXOPLAYER`
   - Utiliza `androidx.media3:media3-exoplayer`.
+  - Integrado con `RitmoMediaSessionService` para reproducción continua en segundo plano y controles en la pantalla de bloqueo.
+  - **Ecualizador de 10 Bandas en C++ (Media3):** Integrado mediante `Media3EqualizerAudioProcessor` (`AudioProcessor` personalizado) inyectado en `DefaultRenderersFactory`/`DefaultAudioSink`, aplicando los filtros Biquad IIR a nivel de muestra PCM en C++ a través de JNI.
 - **Motor Nativo:** `AudioEngineType.OBOE_CPP`
   - Utiliza `com.google.oboe:oboe` y el puente nativo JNI en `app/src/main/cpp`.
-- Al iniciar la app, el usuario puede seleccionar su motor preferido, o alternarlo dinámicamente mediante el selector de la cabecera.
-- Cualquier adición de procesamiento de señales (DSP, ecualizadores) debe integrarse en el módulo nativo de C++ (`app/src/main/cpp`), y los módulos de seguridad o decodificación complementaria en el crate de Rust (`app/src/main/rust`).
+  - **Ecualizador de 10 Bandas en C++ (Oboe):** Implementado con filtros Biquad IIR a nivel de muestra PCM en tiempo real dentro del callback nativo de Oboe.
+- **Disponibilidad del Ecualizador:** El ecualizador de 10 bandas comparte la misma respuesta acústica, preajustes y controles en ambos motores (Oboe C++ y ExoPlayer/Media3). La interfaz identifica con claridad el motor que está procesando la señal de audio.
+- Al iniciar la app, el usuario puede seleccionar su motor preferido, o alternarlo dinámicamente mediante el selector de la cabecera y el panel de ajustes.
+- Cualquier adición de procesamiento de señales (DSP, ecualizadores, audio espacial) debe integrarse en el módulo nativo de C++ (`app/src/main/cpp`), y los módulos de seguridad o decodificación complementaria en el crate de Rust (`app/src/main/rust`).

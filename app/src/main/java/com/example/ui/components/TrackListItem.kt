@@ -1,11 +1,20 @@
 package com.example.ui.components
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -13,7 +22,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Equalizer
+import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.DropdownMenu
@@ -30,6 +40,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -38,6 +49,7 @@ import androidx.compose.ui.unit.sp
 import com.example.data.TrackEntity
 import com.example.ui.theme.DarkSurface
 import com.example.ui.theme.DarkSurfaceVariant
+import com.example.ui.theme.GreenAccent
 import com.example.ui.theme.GreenPrimary
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
@@ -51,15 +63,22 @@ fun TrackListItem(
     isPlaying: Boolean,
     onClick: () -> Unit,
     onDelete: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onEditArtwork: () -> Unit = {}
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
+
+    val backgroundColor by animateColorAsState(
+        targetValue = if (isCurrent) DarkSurfaceVariant.copy(alpha = 0.65f) else Color.Transparent,
+        animationSpec = tween(280),
+        label = "item_bg"
+    )
 
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .background(if (isCurrent) DarkSurfaceVariant.copy(alpha = 0.6f) else androidx.compose.ui.graphics.Color.Transparent)
+            .clip(RoundedCornerShape(10.dp))
+            .background(backgroundColor)
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 8.dp)
             .testTag("track_item_${track.id}"),
@@ -79,14 +98,12 @@ fun TrackListItem(
                     modifier = Modifier
                         .size(50.dp)
                         .clip(RoundedCornerShape(6.dp))
-                        .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.45f)),
+                        .background(Color.Black.copy(alpha = 0.5f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = if (isPlaying) Icons.Default.Equalizer else Icons.Default.PlayArrow,
-                        contentDescription = null,
-                        tint = GreenPrimary,
-                        modifier = Modifier.size(24.dp)
+                    LiveAudioBarsIndicator(
+                        isPlaying = isPlaying,
+                        color = GreenAccent
                     )
                 }
             }
@@ -122,6 +139,7 @@ fun TrackListItem(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false)
                 )
+
                 if (track.durationMs > 0) {
                     Text(
                         text = " • ${FormatUtils.formatDuration(track.durationMs)}",
@@ -134,11 +152,13 @@ fun TrackListItem(
             }
         }
 
-        // More options dropdown
+        // More options dropdown (mínimo 48dp)
         Box {
             IconButton(
                 onClick = { menuExpanded = true },
-                modifier = Modifier.size(40.dp)
+                modifier = Modifier
+                    .size(48.dp)
+                    .testTag("track_options_${track.id}")
             ) {
                 Icon(
                     imageVector = Icons.Default.MoreVert,
@@ -153,7 +173,28 @@ fun TrackListItem(
                 modifier = Modifier.background(DarkSurface)
             ) {
                 DropdownMenuItem(
+                    text = { Text("Cambiar carátula (WebP)", color = TextPrimary) },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.AddPhotoAlternate,
+                            contentDescription = null,
+                            tint = GreenAccent
+                        )
+                    },
+                    onClick = {
+                        menuExpanded = false
+                        onEditArtwork()
+                    }
+                )
+                DropdownMenuItem(
                     text = { Text("Eliminar de la biblioteca", color = MaterialTheme.colorScheme.error) },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.DeleteOutline,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    },
                     onClick = {
                         menuExpanded = false
                         onDelete()
@@ -161,5 +202,81 @@ fun TrackListItem(
                 )
             }
         }
+    }
+}
+
+@Composable
+fun LiveAudioBarsIndicator(
+    isPlaying: Boolean,
+    modifier: Modifier = Modifier,
+    color: Color = GreenAccent
+) {
+    if (!isPlaying) {
+        Icon(
+            imageVector = Icons.Default.PlayArrow,
+            contentDescription = null,
+            tint = color,
+            modifier = modifier.size(22.dp)
+        )
+        return
+    }
+
+    val transition = rememberInfiniteTransition(label = "audio_bars")
+    val bar1 by transition.animateFloat(
+        initialValue = 0.25f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(420, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "bar1"
+    )
+    val bar2 by transition.animateFloat(
+        initialValue = 0.85f,
+        targetValue = 0.2f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(330, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "bar2"
+    )
+    val bar3 by transition.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 0.95f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(490, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "bar3"
+    )
+
+    Row(
+        modifier = modifier
+            .size(20.dp)
+            .padding(bottom = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.5.dp),
+        verticalAlignment = Alignment.Bottom
+    ) {
+        Box(
+            modifier = Modifier
+                .width(3.5.dp)
+                .fillMaxHeight(bar1)
+                .clip(RoundedCornerShape(2.dp))
+                .background(color)
+        )
+        Box(
+            modifier = Modifier
+                .width(3.5.dp)
+                .fillMaxHeight(bar2)
+                .clip(RoundedCornerShape(2.dp))
+                .background(color)
+        )
+        Box(
+            modifier = Modifier
+                .width(3.5.dp)
+                .fillMaxHeight(bar3)
+                .clip(RoundedCornerShape(2.dp))
+                .background(color)
+        )
     }
 }

@@ -1,6 +1,7 @@
 package com.example.playback
 
 import android.util.Log
+import java.nio.ByteBuffer
 
 object OboeAudioBridge {
     private const val TAG = "OboeAudioBridge"
@@ -32,6 +33,30 @@ object OboeAudioBridge {
     external fun nativeGetPosition(): Long
     external fun nativeGetDuration(): Long
     external fun nativeIsPlaying(): Boolean
+
+    // Ecualizador Paramétrico de 10 Bandas (C++)
+    external fun nativeSetEqualizerEnabled(enabled: Boolean)
+    external fun nativeIsEqualizerEnabled(): Boolean
+    external fun nativeSetEqualizerBandGain(bandIndex: Int, gainDb: Float)
+    external fun nativeGetEqualizerBandGain(bandIndex: Int): Float
+    external fun nativeResetEqualizer()
+
+    // Procesamiento PCM para Media3 / ExoPlayer (Filtros Biquad IIR en C++)
+    external fun nativeMedia3ProcessDirect(
+        byteBuffer: ByteBuffer,
+        offsetBytes: Int,
+        lengthBytes: Int,
+        sampleRate: Int,
+        channelCount: Int
+    )
+
+    external fun nativeMedia3ProcessArray(
+        pcmArray: ShortArray,
+        offsetSamples: Int,
+        numSamples: Int,
+        sampleRate: Int,
+        channelCount: Int
+    )
 
     // Puente al módulo Rust (preparado para futuras integraciones)
     external fun nativeGetRustVersion(): Int

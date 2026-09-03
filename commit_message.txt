@@ -1,15 +1,15 @@
-fix(audio): corrección del motor Oboe y adición de workflow para commit_message
+feat(equalizer, storage): ecualizador 10 bandas C++ y almacenamiento modular con carátulas WebP sin pérdida
 
-- Configurado Oboe con Usage::Media, ContentType::Music y SampleRateConversionQuality::Medium para compatibilidad total con 44.1 kHz y múltiples frecuencias de muestreo.
-- Añadidos mecanismos de fallback automático en C++ a PerformanceMode::None y OpenSL ES si AAudio o baja latencia fallan.
-- Corregida la verificación de estados en openStream(), play(), pause() y stop() evitando errores al reanudar reproducciones pausadas o detenidas.
-- Mejorada la gestión de canales de audio (soporte de mono a estéreo y formatos variables sin desbordamiento de búfer).
-- Agregada protección contra ciclos infinitos en el decodificador de MediaCodec ante streams sin flag EOS.
-- Migrada la carga y decodificación de pistas en AudioPlayerManager a Dispatchers.IO con soporte de cancelación para evitar bloqueos en la interfaz de usuario.
-- Sincronizado el estado de activeEngine hacia ExoPlayer en caso de fallo en el motor nativo.
-- Creado el workflow de GitHub Actions 'Override Commit Message' para sincronizar el mensaje del último commit con commit_message.txt.
-- Eliminada la transparencia en FullPlayerView sustituyendo el gradiente semitransparente por un contenedor Surface opaco y gradiente sólido, evitando que se trasluzca la pantalla principal al expandir el reproductor.
-- Solucionado el estiramiento vertical del botón 'Importar' en la barra superior mediante maxLines=1, softWrap=false, peso flexible en el título y espaciado optimizado para dispositivos móviles.
-- Creada la pantalla independiente de Configuración General ('SettingsScreen.kt') con Material Design 3, soporte de BackHandler nativo, conmutador interactivo de motor de audio (ExoPlayer vs Oboe C++), diagnóstico de arquitectura nativa (C++ JNI y Rust C-ABI), contador y opciones de gestión de biblioteca local (importación y vaciado seguro).
-- Implementada la persistencia del aviso de selección de motor de audio en el primer arranque ('KEY_ENGINE_PROMPTED'); el diálogo se muestra únicamente en la primera apertura y posterior a la elección el motor se administra desde el nuevo menú de ajustes o pulsando el chip del motor en la barra superior.
-- Integrado el botón de acceso a Configuración en la cabecera principal junto al chip de motor y botón de importación, manteniendo un diseño táctil ergonómico optimizado para smartphones.
+- Implementado ecualizador paramétrico y gráfico de 10 bandas (31Hz a 16kHz, -12dB a +12dB) con filtros Biquad IIR en C++ a nivel de muestra PCM en tiempo real.
+- Creado 'Media3EqualizerAudioProcessor' para inyectar el filtrado C++ en el AudioSink de ExoPlayer/Media3 vía JNI ('nativeMedia3ProcessDirect'), logrando la misma respuesta acústica en ambos motores.
+- Diseñado el modal táctil de ecualización en Jetpack Compose ('EqualizerModal.kt') con preajustes de audio (Plano, Graves, Agudos, Vocal, Rock, Pop, Clásica), indicador del motor activo y controles táctiles de 48dp.
+- Unificada la disponibilidad del ecualizador en 'FullPlayerView.kt' y 'SettingsScreen.kt' tanto para el motor Oboe C++ como para ExoPlayer (Media3).
+- Integrado 'RitmoMediaSessionService' extendiendo MediaSessionService para soporte de controles en segundo plano, pantalla de bloqueo y barra de notificaciones del sistema.
+- Mejoradas las animaciones de la interfaz de usuario: transición elástica (spring) en carátula, AnimatedContent en botones de reproducción/pausa, barras visualizadoras animadas en pistas activas y curvas de aceleración suaves (FastOutSlowInEasing) en el reproductor completo y ajustes.
+- Expuestos los métodos nativos de procesamiento por bloque PCM ('nativeMedia3ProcessDirect', 'nativeMedia3ProcessArray') y control de bandas en 'native_bridge.cpp' y 'OboeAudioBridge.kt'.
+- Enlazado el estado del ecualizador y sincronización automática entre motores en 'AudioPlayerManager' y 'MusicPlayerViewModel'.
+- Implementada arquitectura de almacenamiento modular en 'Android/data/<package>/files/' con subdirectorios dedicados: 'music/' para audio, 'covers/' para imágenes y 'artists/' para metadatos JSON modulares independientes por pista.
+- Añadido 'AppStorageManager.kt' para orquestar la estructura de carpetas y la generación/lectura/eliminación atómica de archivos '.json' individuales por pista.
+- Creado 'ArtworkProcessor.kt' para asignar o cambiar carátulas a cualquier canción (tenga o no previa), con conversión a formato WebP a máxima compresión sin pérdida (Lossless WebP) ejecutada en hilo secundario ('Dispatchers.IO').
+- Integrado selector visual de carátulas (Photo Picker oficial de Android sin permisos invasivos) accesible con un toque en 'FullPlayerView' y desde el menú contextual de cada pista en 'TrackListItem'.
+- Actualizado 'TrackRepository', 'TrackDao' y 'MusicPlayerViewModel' para sincronizar dinámicamente la ruta de la nueva carátula y el archivo JSON modular en tiempo real.

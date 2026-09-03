@@ -4,6 +4,7 @@
 #include <android/log.h>
 #include <media/NdkMediaExtractor.h>
 #include <media/NdkMediaCodec.h>
+#include "equalizer.h"
 #include <string>
 #include <vector>
 #include <atomic>
@@ -33,6 +34,13 @@ public:
     int64_t getDurationMs() const;
     bool isPlaying() const;
 
+    // Métodos del Ecualizador Paramétrico de 10 Bandas
+    void setEqualizerEnabled(bool enabled);
+    bool isEqualizerEnabled() const;
+    void setEqualizerBandGain(int bandIndex, float gainDb);
+    float getEqualizerBandGain(int bandIndex) const;
+    void resetEqualizer();
+
     // oboe::AudioStreamDataCallback
     oboe::DataCallbackResult onAudioReady(
         oboe::AudioStream *oboeStream,
@@ -60,6 +68,8 @@ private:
     std::atomic<int64_t> mCurrentFrameIndex{0};
     std::atomic<bool> mIsPlaying{false};
     std::atomic<bool> mIsInitialized{false};
+
+    TenBandEqualizer mEqualizer;
 
     mutable std::mutex mBufferMutex;
 };

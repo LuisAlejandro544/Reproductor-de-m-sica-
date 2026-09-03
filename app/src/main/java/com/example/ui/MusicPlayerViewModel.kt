@@ -11,7 +11,10 @@ import com.example.data.TrackEntity
 import com.example.data.TrackRepository
 import com.example.playback.AudioEngineType
 import com.example.playback.AudioPlayerManager
+import com.example.playback.EqualizerPreset
 import com.example.playback.PlaybackRepeatMode
+import com.example.util.AppStorageManager
+import com.example.util.ArtworkProcessor
 import com.example.util.MusicImporter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -62,6 +65,13 @@ class MusicPlayerViewModel(
     val isShuffle: StateFlow<Boolean> = playerManager.isShuffle
     val activeEngine = playerManager.activeEngine
 
+    // Ecualizador Paramétrico de 10 Bandas (C++)
+    val isEqualizerEnabled: StateFlow<Boolean> = playerManager.isEqualizerEnabled
+    val equalizerBandGains: StateFlow<List<Float>> = playerManager.equalizerBandGains
+
+    private val _isEqualizerOpen = MutableStateFlow(false)
+    val isEqualizerOpen: StateFlow<Boolean> = _isEqualizerOpen.asStateFlow()
+
     private val _showEngineDialog = MutableStateFlow(!playerManager.hasPromptedEngineSelection())
     val showEngineDialog: StateFlow<Boolean> = _showEngineDialog.asStateFlow()
 
@@ -73,6 +83,9 @@ class MusicPlayerViewModel(
 
     private val _isImporting = MutableStateFlow(false)
     val isImporting: StateFlow<Boolean> = _isImporting.asStateFlow()
+
+    private val _isUpdatingArtwork = MutableStateFlow(false)
+    val isUpdatingArtwork: StateFlow<Boolean> = _isUpdatingArtwork.asStateFlow()
 
     private val _snackbarMessage = MutableStateFlow<String?>(null)
     val snackbarMessage: StateFlow<String?> = _snackbarMessage.asStateFlow()
@@ -91,6 +104,30 @@ class MusicPlayerViewModel(
 
     fun closeSettings() {
         _isSettingsOpen.value = false
+    }
+
+    fun openEqualizer() {
+        _isEqualizerOpen.value = true
+    }
+
+    fun closeEqualizer() {
+        _isEqualizerOpen.value = false
+    }
+
+    fun setEqualizerEnabled(enabled: Boolean) {
+        playerManager.setEqualizerEnabled(enabled)
+    }
+
+    fun setEqualizerBandGain(bandIndex: Int, gainDb: Float) {
+        playerManager.setEqualizerBandGain(bandIndex, gainDb)
+    }
+
+    fun setEqualizerPreset(preset: EqualizerPreset) {
+        playerManager.setEqualizerPreset(preset)
+    }
+
+    fun resetEqualizer() {
+        playerManager.resetEqualizer()
     }
 
     fun setShowEngineDialog(show: Boolean) {
@@ -122,6 +159,10 @@ class MusicPlayerViewModel(
                 val newTracks = MusicImporter.importAudioUris(getApplication(), uris)
                 if (newTracks.isNotEmpty()) {
                     trackRepository.insertTracks(newTracks)
+                    // Guardar metadatos JSON modulares para cada pista
+                    for (track in newTracks) {
+                        AppStorageManager.saveTrackMetadataJson(getApplication(), track)
+                    }
                     _snackbarMessage.value = if (newTracks.size == 1) {
                         "Canción añadida: ${newTracks.first().title}"
                     } else {
@@ -134,6 +175,42 @@ class MusicPlayerViewModel(
                 _snackbarMessage.value = "Error al importar: ${e.localizedMessage ?: "Desconocido"}"
             } finally {
                 _isImporting.value = false
+            }
+        }
+    }
+
+    /**
+     * Asigna o cambia la carátula de cualquier canción (tenga o no carátula previa).
+     * Convierte la imagen a WebP a máxima compresión sin pérdida (Lossless WebP) en hilo secundario
+     * y actualiza el archivo JSON modular y la base de datos.
+     */
+    fun updateTrackArtwork(track: TrackEntity, imageUri: Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _isUpdatingArtwork.value = true
+            try {
+                val newArtworkPath = ArtworkProcessor.processAndSaveArtworkLosslessWebP(
+                    context = getApplication(),
+                    sourceUri = imageUri,
+                    trackId = track.id,
+                    oldArtworkPath = track.artworkPath
+                )
+
+                val updatedTrack = track.copy(artworkPath = newArtworkPath)
+                trackRepository.updateArtwork(track.id, newArtworkPath)
+
+                // Guardar/Actualizar JSON modular independiente
+                AppStorageManager.saveTrackMetadataJson(getApplication(), updatedTrack)
+
+                // Si es la pista en reproducción actual, sincronizar inmediatamente
+                if (playerManager.currentTrack.value?.id == track.id) {
+                    playerManager.updateCurrentTrack(updatedTrack)
+                }
+
+                _snackbarMessage.value = "Carátula actualizada en formato WebP sin pérdida"
+            } catch (e: Exception) {
+                _snackbarMessage.value = "Error al procesar carátula: ${e.localizedMessage ?: "Desconocido"}"
+            } finally {
+                _isUpdatingArtwork.value = false
             }
         }
     }
@@ -181,6 +258,7 @@ class MusicPlayerViewModel(
                 playerManager.playPause()
             }
             trackRepository.deleteTrack(track)
+            AppStorageManager.deleteTrackMetadataJson(getApplication(), track.id)
             _snackbarMessage.value = "Canción eliminada de la biblioteca"
         }
     }
@@ -209,7 +287,7 @@ class MusicPlayerViewModel(
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             val database = AppDatabase.getDatabase(application)
             val repository = TrackRepository(database.trackDao())
-            val playerManager = AudioPlayerManager(application)
+            val playerManager = AudioPlayerManager.getInstance(application)
             return MusicPlayerViewModel(application, repository, playerManager) as T
         }
     }

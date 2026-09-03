@@ -9,25 +9,38 @@ La aplicación está concebida para su distribución independiente en tiendas de
 ## 🎯 Características Principales
 
 1. **Privacidad y Control Total de Archivos:**
-   - No escanea todo tu almacenamiento ni lee tus fotos o documentos.
-   - Solo reproduce e indexa las canciones y carpetas que tú decides importar explícitamente mediante el selector seguro del sistema.
+   - No escanea todo tu almacenamiento ni accede a fotos o documentos.
+   - Solo reproduce e indexa las canciones y carpetas que decides importar explícitamente mediante el selector seguro del sistema.
    - Base de datos local aislada gestionada con **Room Database**.
 
 2. **Doble Motor de Audio Seleccionable:**
-   - **ExoPlayer / Media3:** Motor de referencia del ecosistema Android, con soporte amplio para múltiples códecs y streaming local.
-   - **Oboe C++ Native Audio Engine:** Motor de audio nativo de ultra baja latencia con acceso directo a las rutas de hardware (`AAudio` y `OpenSL ES`) para una reproducción inmediata y preparación para efectos de sonido DSP avanzados.
+   - **ExoPlayer / Media3:** Motor de referencia del ecosistema Android, con soporte amplio de códecs y reproducción continua.
+   - **Oboe C++ Native Audio Engine:** Motor de audio nativo de ultra baja latencia con acceso directo a hardware (`AAudio` y `OpenSL ES`).
 
-3. **Arquitectura Híbrida Preparada para el Futuro (Kotlin + C++ + Rust):**
-   - **Kotlin & Jetpack Compose:** Interfaz de usuario reactiva, fluida y con diseño contemporáneo en modo oscuro.
-   - **C++ (Google Oboe):** Pipeline de audio nativo de bajo nivel para garantizar latencia mínima y cero micro-cortes.
-   - **Rust Core:** Módulo nativo configurado y enlazado en la compilación para albergar en el futuro decodificadores audiófilos, algoritmos de hashing y procesadores de metadatos seguros contra fallos de memoria.
+3. **Ecualizador Gráfico y Paramétrico de 10 Bandas en C++ (Doble Motor):**
+   - Implementado a bajo nivel con filtros Biquad IIR Transposed Direct Form II por muestra en tiempo real.
+   - 10 bandas de frecuencia ajustables (-12 dB a +12 dB): 31 Hz, 62 Hz, 125 Hz, 250 Hz, 500 Hz, 1 kHz, 2 kHz, 4 kHz, 8 kHz y 16 kHz.
+   - Preajustes sonoros integrados: Plano, Refuerzo de graves, Agudos brillantes, Vocal, Rock, Pop y Música clásica.
+   - **Soporte unificado:** Disponible tanto en **Oboe C++** como en **ExoPlayer (Media3)** mediante `Media3EqualizerAudioProcessor` conectado al motor DSP en C++ vía JNI, ofreciendo ecualización consistente en ambos entornos.
 
-4. **Experiencia de Usuario:**
-   - **Mini Reproductor:** Barra flotante acoplada con carátula, título, artista, progreso en tiempo real y controles rápidos.
-   - **Reproductor Completo:** Despliegue dinámico con carátula a gran escala, barra deslizadora con timestamps, salto de 10s, modo aleatorio (*shuffle*) y modos de repetición.
-   - **Buscador en Tiempo Real:** Filtro instantáneo por nombre de canción o artista.
-   - **Pantalla Independiente de Configuración:** Menú completo de ajustes para conmutar el motor de audio en caliente (ExoPlayer vs Oboe C++), auditar los módulos nativos integrados, ver el conteo de canciones locales e importar o vaciar la biblioteca con confirmación de seguridad.
-   - **Flujo de Primer Inicio Autónomo:** El diálogo de selección de motor se presenta únicamente en la primera ejecución de la aplicación; en arranques sucesivos, la app arranca de forma inmediata con el motor configurado, pudiendo alternarse en cualquier momento desde los ajustes.
+4. **Reproducción Continua en Segundo Plano (MediaSessionService):**
+   - Integración nativa con `RitmoMediaSessionService` (`androidx.media3.session.MediaSessionService`).
+   - Controles de reproducción interactivos y sincronización de metadatos (título, artista, carátula) en la barra de notificaciones del sistema y la pantalla de bloqueo.
+
+5. **Animaciones Suaves y Diseño Ergonómico:**
+   - Animación elástica (*spring*) reactiva en la carátula durante la reproducción y pausa.
+   - Transiciones animadas con escalado y fundido (`AnimatedContent`) en controles de reproducción.
+   - Indicador visual animado de barras de audio en tiempo real en la pista que está sonando.
+   - Despliegue con curvas de aceleración ergonómicas (`FastOutSlowInEasing`) en el reproductor completo y la pantalla de ajustes.
+   - Controles táctiles con área mínima de interacción de 48dp optimizados para uso con una sola mano en smartphones.
+
+6. **Almacenamiento Modular y Carátulas WebP sin Pérdida:**
+   - Estructura limpia de almacenamiento en `Android/data/<package>/files/` dividida en subcarpetas especializadas:
+     - `music/`: Archivos de audio locales importados.
+     - `covers/`: Carátulas de álbumes procesadas en formato WebP.
+     - `artists/`: Archivos `.json` modulares e independientes por cada canción que enlazan metadatos, audio y carátula.
+   - **Compresión WebP Lossless en Segundo Plano:** Posibilidad de asignar o cambiar la carátula de cualquier pista (tenga o no imagen previa) convirtiéndola a WebP a máxima compresión sin pérdida de fidelidad (`Bitmap.CompressFormat.WEBP_LOSSLESS`), ejecutado en segundo plano con Corrutinas (`Dispatchers.IO`) sin congelar la interfaz.
+   - Selector visual de imágenes con Android Photo Picker oficial (cero permisos invasivos requeridos).
 
 ---
 
@@ -35,11 +48,13 @@ La aplicación está concebida para su distribución independiente en tiendas de
 
 | Capa | Tecnologías |
 | :--- | :--- |
-| **Interfaz de Usuario (UI)** | Kotlin 2.2+, Jetpack Compose, Material Design 3 |
-| **Persistencia Local** | Room Database 2.7+ con KSP |
-| **Imágenes y Carátulas** | Coil Compose (decodificación asíncrona de miniaturas y bitmaps) |
+| **Interfaz de Usuario (UI)** | Kotlin 2.2+, Jetpack Compose, Material Design 3, Animaciones reactivas |
+| **Servicio de Segundo Plano** | AndroidX Media3 Session (`MediaSessionService`) |
+| **Persistencia Local** | Room Database 2.7+ con KSP y Archivos JSON modulares por pista |
+| **Imágenes y Carátulas** | Formato WebP Lossless (sin pérdida), Coil Compose, Android Photo Picker |
 | **Motor de Audio Estándar** | AndroidX Media3 / ExoPlayer 1.5+ |
 | **Motor de Audio Nativo** | C++20, Google Oboe (AAudio / OpenSL ES), CMake 3.22+, Android NDK r26b |
+| **Ecualizador DSP** | Filtros Biquad IIR en C++ integrados en Oboe y en Media3 (AudioProcessor) |
 | **Módulo Nativo de Extensión** | Rust 2021 (C-ABI bridge, `staticlib`/`cdylib`) |
 | **Compilación y Build System** | Gradle 9.3+ con Kotlin DSL (`build.gradle.kts`) |
 
@@ -50,57 +65,50 @@ La aplicación está concebida para su distribución independiente en tiendas de
 ```
 ├── app/
 │   ├── src/main/
-│   │   ├── cpp/                 # Código nativo en C++ (Oboe Audio Engine y JNI)
+│   │   ├── cpp/                 # Código nativo en C++ (Oboe Audio Engine, Equalizer y JNI)
 │   │   │   ├── CMakeLists.txt   # Configuración de compilación nativa
-│   │   │   ├── native_audio.cpp # Motor de reproducción Oboe
+│   │   │   ├── equalizer.h      # Filtros Biquad IIR de 10 bandas en C++
+│   │   │   ├── native_audio.h   # Cabecera del motor Oboe con ecualizador
+│   │   │   ├── native_audio.cpp # Implementación del motor y aplicación de DSP
 │   │   │   └── native_bridge.cpp# Métodos JNI expuestos a Kotlin
-│   │   ├── rust/                # Módulo nativo en Rust
-│   │   │   ├── Cargo.toml       # Definición de la biblioteca Rust
-│   │   │   └── src/lib.rs       # Código fuente y exportaciones C-ABI
+│   │   ├── rust/                # Módulo nativo en Rust (C-ABI)
 │   │   ├── java/com/example/    # Código Kotlin
 │   │   │   ├── data/            # Entidades Room y DAOs
-│   │   │   ├── playback/        # AudioPlayerManager (ExoPlayer y Oboe bridge)
+│   │   │   ├── playback/        # AudioPlayerManager, Media3EqualizerAudioProcessor, OboeAudioBridge, RitmoMediaSessionService
 │   │   │   ├── ui/              # Pantallas Compose y ViewModel
 │   │   │   │   ├── MainMusicScreen.kt # Pantalla principal con lista y buscador
-│   │   │   │   ├── SettingsScreen.kt  # Pantalla de configuración independiente y selección de motor
-│   │   │   │   ├── MusicPlayerViewModel.kt # ViewModel central y estado de reproducción
-│   │   │   │   └── components/  # MiniPlayer, FullPlayerView, TrackListItem
-│   │   │   └── util/            # Extractor de carátulas y metadatos
+│   │   │   │   ├── SettingsScreen.kt  # Pantalla de configuración independiente
+│   │   │   │   ├── MusicPlayerViewModel.kt # ViewModel con gestión de EQ, WebP y estados
+│   │   │   │   └── components/  # EqualizerModal, FullPlayerView, MiniPlayer, TrackListItem
+│   │   │   └── util/            # AppStorageManager, ArtworkProcessor, AudioMetadataHelper, FormatUtils
 │   │   └── res/                 # Iconos, temas, cadenas en strings.xml
+│   ├── storage/                 # Directorio en runtime: Android/data/<app>/files/ (music/, covers/, artists/)
+│   └── ...
 ├── gradle/                      # Version Catalog (libs.versions.toml)
-├── metadata.json                # Metadatos para AI Studio
+├── commit_message.txt           # Mensaje del último commit sincronizado
 ├── README.md                    # Este documento
 ├── ROADMAP.md                   # Plan de evolución del proyecto
-├── STRUCTURE.md                 # Análisis detallado de la arquitectura
-├── AI_CONTEXT.md                # Contexto y directrices para asistentes de IA
-└── AGENTS.md                    # Reglas persistentes de desarrollo y flujos
+├── STRUCTURE.md                 # Arquitectura y diseño técnico
+├── AI_CONTEXT.md                # Contexto y directrices para agentes de IA
+└── AGENTS.md                    # Reglas persistentes de desarrollo
 ```
 
 ---
 
 ## 🚀 Compilación y Generación del APK
 
-El proyecto está configurado con Gradle y Kotlin DSL para compilar de forma integrada tanto el código Kotlin como las bibliotecas nativas de C++ y Rust.
-
 ### Generar APK de depuración (Debug APK)
 ```bash
 gradle :app:assembleDebug
 ```
-El archivo resultante se encontrará en:
+El archivo resultante se ubica en:
 `app/build/outputs/apk/debug/app-debug.apk`
-
-### Generar APK de lanzamiento firmado (Release APK)
-```bash
-gradle :app:assembleRelease
-```
 
 ---
 
 ## 📱 Instalación en el Teléfono (Sin PC)
 
-Si descargas el APK directamente en tu teléfono móvil:
-1. Descarga el archivo `app-debug.apk` o la versión de distribución desde tu gestor de descargas o navegador.
-2. Abre el archivo APK en tu dispositivo.
-3. Si Android te solicita permisos de "Instalar aplicaciones desconocidas", concédeselos a tu navegador o administrador de archivos.
-4. Pulsa en **Instalar** y abre **Ritmo**.
-5. Pulsa en **Importar** para seleccionar los archivos de audio que desees escuchar.
+1. Descarga el archivo `app-debug.apk` directamente en tu smartphone.
+2. Abre el instalador de paquetes de tu dispositivo.
+3. Si el sistema lo requiere, habilita "Instalar aplicaciones desconocidas" para tu navegador o gestor de archivos.
+4. Abre **Ritmo**, selecciona tu motor preferido y disfruta de tu música con privacidad y alta fidelidad sonora.

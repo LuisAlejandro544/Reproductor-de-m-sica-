@@ -16,14 +16,13 @@ object MusicImporter {
     suspend fun importAudioUris(context: Context, uris: List<Uri>): List<TrackEntity> =
         withContext(Dispatchers.IO) {
             val importedList = mutableListOf<TrackEntity>()
-            val tracksDir = File(context.filesDir, "tracks").apply { mkdirs() }
-            val artDir = File(context.filesDir, "artworks").apply { mkdirs() }
+            val musicDir = AppStorageManager.getMusicDir(context)
 
             for (uri in uris) {
                 try {
                     val displayName = getFileName(context, uri) ?: "audio_${System.currentTimeMillis()}.mp3"
                     val safeName = "${UUID.randomUUID()}_$displayName"
-                    val targetFile = File(tracksDir, safeName)
+                    val targetFile = File(musicDir, safeName)
 
                     context.contentResolver.openInputStream(uri)?.use { inputStream ->
                         FileOutputStream(targetFile).use { outputStream ->
@@ -52,11 +51,14 @@ object MusicImporter {
 
                         val embeddedArt = retriever.embeddedPicture
                         if (embeddedArt != null && embeddedArt.isNotEmpty()) {
-                            val artFile = File(artDir, "art_${UUID.randomUUID()}.jpg")
-                            FileOutputStream(artFile).use { fos ->
-                                fos.write(embeddedArt)
+                            try {
+                                artworkPath = ArtworkProcessor.processByteArrayToLosslessWebP(
+                                    context = context,
+                                    bytes = embeddedArt,
+                                    trackId = System.currentTimeMillis()
+                                )
+                            } catch (_: Exception) {
                             }
-                            artworkPath = artFile.absolutePath
                         }
                     } catch (_: Exception) {
                     } finally {
@@ -74,17 +76,16 @@ object MusicImporter {
                     val cleanArtist = if (!artist.isNullOrBlank()) artist.trim() else "Artista desconocido"
                     val cleanAlbum = if (!album.isNullOrBlank()) album.trim() else "Álbum desconocido"
 
-                    importedList.add(
-                        TrackEntity(
-                            title = cleanTitle,
-                            artist = cleanArtist,
-                            album = cleanAlbum,
-                            durationMs = durationMs,
-                            filePath = targetFile.absolutePath,
-                            artworkPath = artworkPath,
-                            dateAdded = System.currentTimeMillis()
-                        )
+                    val track = TrackEntity(
+                        title = cleanTitle,
+                        artist = cleanArtist,
+                        album = cleanAlbum,
+                        durationMs = durationMs,
+                        filePath = targetFile.absolutePath,
+                        artworkPath = artworkPath,
+                        dateAdded = System.currentTimeMillis()
                     )
+                    importedList.add(track)
                 } catch (_: Exception) {
                 }
             }

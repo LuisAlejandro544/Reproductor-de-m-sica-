@@ -1,8 +1,14 @@
 package com.example.ui.components
 
-import androidx.compose.foundation.background
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -23,11 +29,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -51,29 +57,35 @@ fun MiniPlayer(
     onExpand: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val progress = if (durationMs > 0) {
+    val rawProgress = if (durationMs > 0) {
         (currentPositionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
     } else {
         0f
     }
 
+    val animatedProgress by animateFloatAsState(
+        targetValue = rawProgress,
+        animationSpec = tween(durationMillis = 250),
+        label = "mini_player_progress"
+    )
+
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 10.dp, vertical = 6.dp)
-            .shadow(12.dp, RoundedCornerShape(12.dp))
-            .clip(RoundedCornerShape(12.dp))
+            .shadow(12.dp, RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(14.dp))
             .clickable(onClick = onExpand)
             .testTag("mini_player_surface"),
         color = DarkSurfaceElevated,
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(14.dp),
         tonalElevation = 6.dp
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Album Art
@@ -114,26 +126,35 @@ fun MiniPlayer(
                     )
                 }
 
-                // Play / Pause Button
+                // Play / Pause Button with smooth AnimatedContent (48dp touch target)
                 IconButton(
                     onClick = onPlayPause,
                     modifier = Modifier
-                        .size(44.dp)
+                        .size(48.dp)
                         .testTag("mini_player_play_pause")
                 ) {
-                    Icon(
-                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = if (isPlaying) "Pausar" else "Reproducir",
-                        tint = TextPrimary,
-                        modifier = Modifier.size(28.dp)
-                    )
+                    AnimatedContent(
+                        targetState = isPlaying,
+                        transitionSpec = {
+                            (scaleIn(animationSpec = tween(220)) + fadeIn(animationSpec = tween(220))) togetherWith
+                            (scaleOut(animationSpec = tween(180)) + fadeOut(animationSpec = tween(180)))
+                        },
+                        label = "mini_play_pause_anim"
+                    ) { playing ->
+                        Icon(
+                            imageVector = if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
+                            contentDescription = if (playing) "Pausar" else "Reproducir",
+                            tint = TextPrimary,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
                 }
 
-                // Next Button
+                // Next Button (48dp touch target)
                 IconButton(
                     onClick = onNext,
                     modifier = Modifier
-                        .size(44.dp)
+                        .size(48.dp)
                         .testTag("mini_player_next")
                 ) {
                     Icon(
@@ -145,12 +166,12 @@ fun MiniPlayer(
                 }
             }
 
-            // Slim progress bar at bottom of mini player
+            // Progress bar at bottom of mini player
             LinearProgressIndicator(
-                progress = { progress },
+                progress = { animatedProgress },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(2.5.dp),
+                    .height(3.dp),
                 color = GreenPrimary,
                 trackColor = SliderInactive.copy(alpha = 0.4f)
             )

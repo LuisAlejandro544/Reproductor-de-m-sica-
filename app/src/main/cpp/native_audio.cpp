@@ -85,6 +85,7 @@ bool OboeAudioPlayer::openStream() {
          mAudioStream->getChannelCount(),
          mAudioStream->getBufferSizeInFrames(),
          mAudioStream->getAudioApi() == oboe::AudioApi::AAudio ? "AAudio" : "OpenSLES");
+    mEqualizer.setSampleRate(static_cast<float>(mAudioStream->getSampleRate()));
     return true;
 }
 
@@ -414,7 +415,34 @@ oboe::DataCallbackResult OboeAudioPlayer::onAudioReady(
         mCurrentFrameIndex.store(currentFrame + framesToRead);
     }
 
+    // Procesar ecualizador paramétrico de 10 bandas si está activo
+    if (framesToRead > 0) {
+        mEqualizer.process(output, framesToRead, streamChannels);
+    }
+
     return oboe::DataCallbackResult::Continue;
+}
+
+void OboeAudioPlayer::setEqualizerEnabled(bool enabled) {
+    mEqualizer.setEnabled(enabled);
+    LOGI("OboeAudioPlayer: Equalizer %s", enabled ? "ENABLED" : "DISABLED");
+}
+
+bool OboeAudioPlayer::isEqualizerEnabled() const {
+    return mEqualizer.isEnabled();
+}
+
+void OboeAudioPlayer::setEqualizerBandGain(int bandIndex, float gainDb) {
+    mEqualizer.setBandGain(bandIndex, gainDb);
+}
+
+float OboeAudioPlayer::getEqualizerBandGain(int bandIndex) const {
+    return mEqualizer.getBandGain(bandIndex);
+}
+
+void OboeAudioPlayer::resetEqualizer() {
+    mEqualizer.resetGains();
+    LOGI("OboeAudioPlayer: Equalizer reset to flat");
 }
 
 void OboeAudioPlayer::onErrorAfterClose(oboe::AudioStream *oboeStream, oboe::Result error) {

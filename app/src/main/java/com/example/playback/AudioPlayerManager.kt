@@ -1,12 +1,18 @@
 package com.example.playback
 
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
 import android.net.Uri
+import android.os.Build
 import android.util.Log
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.audio.DefaultAudioSink
 import com.example.data.TrackEntity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -33,6 +39,17 @@ class AudioPlayerManager(private val context: Context) {
         private const val PREFS_NAME = "ritmo_audio_prefs"
         private const val KEY_AUDIO_ENGINE = "selected_audio_engine"
         private const val KEY_ENGINE_PROMPTED = "engine_selection_prompted"
+        private const val KEY_EQ_ENABLED = "eq_enabled"
+        private const val KEY_EQ_BAND_PREFIX = "eq_band_"
+
+        @Volatile
+        private var instance: AudioPlayerManager? = null
+
+        fun getInstance(context: Context): AudioPlayerManager {
+            return instance ?: synchronized(this) {
+                instance ?: AudioPlayerManager(context.applicationContext).also { instance = it }
+            }
+        }
     }
 
     private val sharedPrefs: SharedPreferences =
@@ -42,7 +59,23 @@ class AudioPlayerManager(private val context: Context) {
     private var progressJob: Job? = null
     private var playJob: Job? = null
 
-    private val exoPlayer: ExoPlayer = ExoPlayer.Builder(context).build()
+    private val equalizerAudioProcessor = Media3EqualizerAudioProcessor()
+
+    private val renderersFactory = object : DefaultRenderersFactory(context) {
+        override fun buildAudioSink(
+            context: Context,
+            enableFloatOutput: Boolean,
+            enableAudioTrackPlaybackParams: Boolean
+        ): AudioSink? {
+            return DefaultAudioSink.Builder(context)
+                .setAudioProcessors(arrayOf(equalizerAudioProcessor))
+                .setEnableFloatOutput(enableFloatOutput)
+                .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+                .build()
+        }
+    }
+
+    val exoPlayer: ExoPlayer = ExoPlayer.Builder(context, renderersFactory).build()
 
     private val _activeEngine = MutableStateFlow(loadSavedEngine())
     val activeEngine: StateFlow<AudioEngineType> = _activeEngine.asStateFlow()
@@ -65,11 +98,24 @@ class AudioPlayerManager(private val context: Context) {
     private val _isShuffle = MutableStateFlow(false)
     val isShuffle: StateFlow<Boolean> = _isShuffle.asStateFlow()
 
+    // Estado del Ecualizador Paramétrico de 10 Bandas (C++)
+    private val _isEqualizerEnabled = MutableStateFlow(sharedPrefs.getBoolean(KEY_EQ_ENABLED, false))
+    val isEqualizerEnabled: StateFlow<Boolean> = _isEqualizerEnabled.asStateFlow()
+
+    private val _equalizerBandGains = MutableStateFlow(loadSavedEqGains())
+    val equalizerBandGains: StateFlow<List<Float>> = _equalizerBandGains.asStateFlow()
+
     private var currentPlaylist: List<TrackEntity> = emptyList()
     private var shuffledIndices: List<Int> = emptyList()
     private var currentShuffleIndex = 0
 
     init {
+        // Inicializar motor nativo y sincronizar el estado del ecualizador C++ para ambos motores
+        if (OboeAudioBridge.isNativeReady()) {
+            OboeAudioBridge.nativeInit()
+            applyEqualizerToNative()
+        }
+
         exoPlayer.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 if (_activeEngine.value == AudioEngineType.EXOPLAYER) {
@@ -108,6 +154,73 @@ class AudioPlayerManager(private val context: Context) {
             AudioEngineType.valueOf(saved ?: AudioEngineType.EXOPLAYER.name)
         } catch (_: Exception) {
             AudioEngineType.EXOPLAYER
+        }
+    }
+
+    private fun loadSavedEqGains(): List<Float> {
+        return List(EqualizerDefaults.NUM_BANDS) { index ->
+            sharedPrefs.getFloat(KEY_EQ_BAND_PREFIX + index, 0.0f)
+        }
+    }
+
+    fun setEqualizerEnabled(enabled: Boolean) {
+        _isEqualizerEnabled.value = enabled
+        sharedPrefs.edit().putBoolean(KEY_EQ_ENABLED, enabled).apply()
+        if (OboeAudioBridge.isNativeReady()) {
+            OboeAudioBridge.nativeSetEqualizerEnabled(enabled)
+        }
+    }
+
+    fun setEqualizerBandGain(bandIndex: Int, gainDb: Float) {
+        if (bandIndex !in 0 until EqualizerDefaults.NUM_BANDS) return
+        val current = _equalizerBandGains.value.toMutableList()
+        current[bandIndex] = gainDb.coerceIn(EqualizerDefaults.MIN_GAIN_DB, EqualizerDefaults.MAX_GAIN_DB)
+        _equalizerBandGains.value = current
+        sharedPrefs.edit().putFloat(KEY_EQ_BAND_PREFIX + bandIndex, current[bandIndex]).apply()
+        if (OboeAudioBridge.isNativeReady()) {
+            OboeAudioBridge.nativeSetEqualizerBandGain(bandIndex, current[bandIndex])
+        }
+    }
+
+    fun setEqualizerPreset(preset: EqualizerPreset) {
+        val gains = preset.gains.take(EqualizerDefaults.NUM_BANDS)
+        _equalizerBandGains.value = gains
+        val editor = sharedPrefs.edit()
+        gains.forEachIndexed { index, gain ->
+            editor.putFloat(KEY_EQ_BAND_PREFIX + index, gain)
+            if (OboeAudioBridge.isNativeReady()) {
+                OboeAudioBridge.nativeSetEqualizerBandGain(index, gain)
+            }
+        }
+        editor.apply()
+    }
+
+    fun resetEqualizer() {
+        setEqualizerPreset(EqualizerDefaults.PRESETS.first { it.id == "flat" })
+        if (OboeAudioBridge.isNativeReady()) {
+            OboeAudioBridge.nativeResetEqualizer()
+        }
+    }
+
+    private fun applyEqualizerToNative() {
+        if (OboeAudioBridge.isNativeReady()) {
+            OboeAudioBridge.nativeSetEqualizerEnabled(_isEqualizerEnabled.value)
+            _equalizerBandGains.value.forEachIndexed { index, gain ->
+                OboeAudioBridge.nativeSetEqualizerBandGain(index, gain)
+            }
+        }
+    }
+
+    fun startBackgroundService() {
+        try {
+            val intent = Intent(context, RitmoMediaSessionService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "No se pudo iniciar el servicio en primer plano MediaSessionService", e)
         }
     }
 
@@ -172,10 +285,52 @@ class AudioPlayerManager(private val context: Context) {
         }
     }
 
-    private fun playTrackWithExoPlayer(track: TrackEntity, position: Long = 0L, autoPlay: Boolean = true) {
+    private fun buildMediaItem(track: TrackEntity): MediaItem {
         val file = File(track.filePath)
         val uri = if (file.exists()) Uri.fromFile(file) else Uri.parse(track.filePath)
-        val mediaItem = MediaItem.fromUri(uri)
+        val metadata = MediaMetadata.Builder()
+            .setTitle(track.title)
+            .setArtist(track.artist)
+            .setAlbumTitle(track.album)
+            .apply {
+                if (!track.artworkPath.isNullOrBlank()) {
+                    setArtworkUri(Uri.parse(track.artworkPath))
+                }
+            }
+            .build()
+        return MediaItem.Builder()
+            .setMediaId(track.id.toString())
+            .setMediaMetadata(metadata)
+            .setUri(uri)
+            .build()
+    }
+
+    private fun syncExoPlayerMetadata(track: TrackEntity) {
+        val mediaItem = buildMediaItem(track)
+        exoPlayer.setMediaItem(mediaItem)
+        exoPlayer.prepare()
+    }
+
+    fun updateCurrentTrack(updatedTrack: TrackEntity) {
+        if (_currentTrack.value?.id == updatedTrack.id) {
+            _currentTrack.value = updatedTrack
+            currentPlaylist = currentPlaylist.map { if (it.id == updatedTrack.id) updatedTrack else it }
+            if (_activeEngine.value == AudioEngineType.EXOPLAYER) {
+                val mediaItem = buildMediaItem(updatedTrack)
+                val currentPos = exoPlayer.currentPosition
+                val isPlayingNow = exoPlayer.isPlaying
+                exoPlayer.setMediaItem(mediaItem, currentPos)
+                if (isPlayingNow) {
+                    exoPlayer.play()
+                }
+            } else {
+                syncExoPlayerMetadata(updatedTrack)
+            }
+        }
+    }
+
+    private fun playTrackWithExoPlayer(track: TrackEntity, position: Long = 0L, autoPlay: Boolean = true) {
+        val mediaItem = buildMediaItem(track)
         exoPlayer.setMediaItem(mediaItem)
         exoPlayer.prepare()
         if (position > 0) {
@@ -185,6 +340,7 @@ class AudioPlayerManager(private val context: Context) {
             exoPlayer.play()
             _isPlaying.value = true
             startProgressTracker()
+            startBackgroundService()
         }
     }
 
@@ -194,13 +350,17 @@ class AudioPlayerManager(private val context: Context) {
         _currentTrack.value = track
         _duration.value = if (track.durationMs > 0) track.durationMs else 0L
 
+        startBackgroundService()
+
         playJob?.cancel()
         playJob = playerScope.launch(Dispatchers.IO) {
             if (_activeEngine.value == AudioEngineType.OBOE_CPP && OboeAudioBridge.isNativeReady()) {
                 withContext(Dispatchers.Main) {
                     exoPlayer.pause()
+                    syncExoPlayerMetadata(track)
                 }
                 OboeAudioBridge.nativeInit()
+                applyEqualizerToNative()
                 val loaded = OboeAudioBridge.nativeLoadFile(track.filePath)
                 if (loaded) {
                     OboeAudioBridge.nativePlay()
@@ -232,6 +392,7 @@ class AudioPlayerManager(private val context: Context) {
     }
 
     fun playPause() {
+        startBackgroundService()
         if (_currentTrack.value == null && currentPlaylist.isNotEmpty()) {
             playTrack(currentPlaylist[0], currentPlaylist)
             return

@@ -6,30 +6,39 @@ Este documento define la hoja de ruta estratégica para el desarrollo de **Ritmo
 
 ## 📍 Estado Actual: Fase 1 — Cimientos Sólidos & Arquitectura Híbrida (Completada)
 
-- [x] **Interfaz Reactiva Material Design 3:**
+- [x] **Interfaz Reactiva Material Design 3 con Animaciones Fluidas:**
   - Tema oscuro de alta fidelidad con acentos verdes y contraste óptimo.
   - Barra superior con contador dinámico de canciones y botón de importación directa.
-  - Mini reproductor persistente con carátula, texto deslizante y controles de reproducción/avance.
-  - Reproductor completo con animación fluida de apertura/cierre, barra de progreso interactiva (seeker), modo aleatorio y modos de repetición.
+  - Mini reproductor persistente con carátula, animaciones suaves de reproducción/pausa y barra de progreso.
+  - Reproductor completo con transición vertical ergonómica, escalado elástico (*spring*) en carátula y saltos temporales.
+  - Barras animadas de visualización de audio en tiempo real en la pista que está sonando (`TrackListItem`).
 - [x] **Privacidad e Importación Local:**
   - Selector de archivos mediante `ActivityResultContracts.OpenMultipleDocuments()`.
-  - Copia y almacenamiento local aislado en el almacenamiento de la app.
+  - Copia y almacenamiento local aislado en el almacenamiento privado de la app.
   - Extracción y almacenamiento en caché de miniaturas y carátulas integradas.
   - Persistencia de metadatos (título, artista, álbum, duración, ruta) mediante **Room Database**.
 - [x] **Doble Motor de Audio Seleccionable y Ajustes Generales:**
-  - Selector exclusivo en el primer inicio con persistencia en SharedPreferences (`KEY_ENGINE_PROMPTED`).
+  - Selector en el primer inicio con persistencia en SharedPreferences (`KEY_ENGINE_PROMPTED`).
   - Motor estándar con ExoPlayer / Media3.
   - Motor nativo C++ con Google Oboe (AAudio/OpenSL ES) para baja latencia.
-  - Pantalla independiente de Configuración General (`SettingsScreen`) para alternar el motor de audio en caliente, consultar el diagnóstico de módulos nativos y gestionar la biblioteca.
-- [x] **Preparación de Infraestructura Nativa:**
-  - Integración de CMake y Android NDK para compilación de C++.
-  - Estructura y enlace de biblioteca nativa en Rust para futuras ampliaciones seguras.
+  - Pantalla independiente de Configuración General (`SettingsScreen`) con conmutador en caliente y diagnóstico nativo.
+- [x] **Reproducción en Segundo Plano:**
+  - Integración con `RitmoMediaSessionService` (`androidx.media3.session.MediaSessionService`).
+  - Controles de reproducción, metadatos y carátula sincronizados en notificaciones del sistema y pantalla de bloqueo.
+- [x] **Ecualizador de 10 Bandas en C++ (Doble Motor: Oboe y Media3):**
+  - Implementación con filtros Biquad IIR Transposed Direct Form II por muestra en tiempo real.
+  - 10 bandas de frecuencia (31 Hz a 16 kHz) con ganancia de -12 dB a +12 dB.
+  - Modal táctil interactivo en Compose (`EqualizerModal`) con preajustes de fábrica (Plano, Graves, Agudos, Vocal, Rock, Pop, Clásica).
+  - Soporte unificado para **Oboe C++** y **ExoPlayer / Media3** (mediante `Media3EqualizerAudioProcessor`), manteniendo ecualización idéntica y sincronizada en ambos motores.
+- [x] **Almacenamiento Modular Desacoplado y Carátulas WebP sin Pérdida:**
+  - Estructuración de directorios dedicados en `Android/data/<package>/files/`: `music/`, `covers/` y `artists/`.
+  - Conexión e interoperabilidad mediante archivos `.json` modulares independientes por cada pista.
+  - Procesamiento asíncrono en hilo secundario (`Dispatchers.IO`) con compresión WebP Lossless a máxima calidad sin congelar la UI.
+  - Asignación y cambio de carátula para cualquier canción (tenga o no previa) desde el reproductor completo y la lista.
 
 ---
 
-## 🎧 Fase 2 — Exclusividades por Motor de Audio y DSP Avanzado
-
-El objetivo de esta fase es exprimir al máximo el potencial y la naturaleza única de cada motor de audio integrado, ofreciendo funciones avanzadas de forma completamente gratuita y sin dependencias de pago:
+## 🎧 Fase 2 — Procesamiento DSP Avanzado y Funciones por Motor
 
 - [ ] **Funciones Exclusivas del Motor Nativo (Oboe C++):**
   - **Audio 8D / Audio Espacial 360° Gratuito:**
@@ -39,8 +48,6 @@ El objetivo de esta fase es exprimir al máximo el potencial y la naturaleza ún
     - Micro-reverberación de sala para sensación tridimensional real sin costo ni anuncios.
   - **Control de Tono y Velocidad sin Distorsión (*Pitch & Speed Shift*):**
     - Modulación precisa de semitonos musicales y afinación alternativa (ej: 432 Hz).
-  - **Ecualizador Paramétrico y Gráfico de 10 Bandas:**
-    - Filtros biquad IIR directos de punto flotante en C++ con refuerzo de graves profundo (*Bass Boost*) y visualizador de curvas en Compose.
   - **Modo Direct-to-DAC / Bit-Perfect:**
     - Acceso directo de ultra baja latencia para audiófilos utilizando DACs USB y auriculares de monitoreo.
 
@@ -51,9 +58,6 @@ El objetivo de esta fase es exprimir al máximo el potencial y la naturaleza ún
     - Reproducción continua sin micro-pausas entre pistas de álbumes en vivo y sinfonías.
   - **Eficiencia Energética Máxima:**
     - Aprovechamiento del decodificador multimedia del chipset del dispositivo para mínimo consumo de batería en reproducción prolongada con pantalla apagada.
-
-- [ ] **Exploración de Nuevos Motores de Audio Futuros:**
-  - Arquitectura desacoplada y modular pensada para poder incorporar en el futuro motores alternativos adicionales (por ejemplo: motor 100% Rust con Symphonia/Rodio, backend OpenSL ES puro para dispositivos antiguos o motores experimentales de síntesis sonora).
 
 ---
 

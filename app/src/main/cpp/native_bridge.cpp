@@ -8,6 +8,7 @@ extern "C" {
 
 static std::unique_ptr<OboeAudioPlayer> gAudioPlayer;
 static std::mutex gPlayerMutex;
+static TenBandEqualizer gMedia3Equalizer;
 
 static OboeAudioPlayer* getPlayer() {
     std::lock_guard<std::mutex> lock(gPlayerMutex);
@@ -82,6 +83,73 @@ Java_com_example_playback_OboeAudioBridge_nativeGetDuration(JNIEnv* env, jobject
 JNIEXPORT jboolean JNICALL
 Java_com_example_playback_OboeAudioBridge_nativeIsPlaying(JNIEnv* env, jobject /* this */) {
     return getPlayer()->isPlaying() ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT void JNICALL
+Java_com_example_playback_OboeAudioBridge_nativeSetEqualizerEnabled(JNIEnv* env, jobject /* this */, jboolean enabled) {
+    getPlayer()->setEqualizerEnabled(enabled == JNI_TRUE);
+    gMedia3Equalizer.setEnabled(enabled == JNI_TRUE);
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_example_playback_OboeAudioBridge_nativeIsEqualizerEnabled(JNIEnv* env, jobject /* this */) {
+    return getPlayer()->isEqualizerEnabled() ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT void JNICALL
+Java_com_example_playback_OboeAudioBridge_nativeSetEqualizerBandGain(JNIEnv* env, jobject /* this */, jint bandIndex, jfloat gainDb) {
+    getPlayer()->setEqualizerBandGain(static_cast<int>(bandIndex), static_cast<float>(gainDb));
+    gMedia3Equalizer.setBandGain(static_cast<int>(bandIndex), static_cast<float>(gainDb));
+}
+
+JNIEXPORT jfloat JNICALL
+Java_com_example_playback_OboeAudioBridge_nativeGetEqualizerBandGain(JNIEnv* env, jobject /* this */, jint bandIndex) {
+    return static_cast<jfloat>(getPlayer()->getEqualizerBandGain(static_cast<int>(bandIndex)));
+}
+
+JNIEXPORT void JNICALL
+Java_com_example_playback_OboeAudioBridge_nativeResetEqualizer(JNIEnv* env, jobject /* this */) {
+    getPlayer()->resetEqualizer();
+    gMedia3Equalizer.resetGains();
+}
+
+JNIEXPORT void JNICALL
+Java_com_example_playback_OboeAudioBridge_nativeMedia3ProcessDirect(
+    JNIEnv* env, jobject /* this */,
+    jobject byteBuffer, jint offsetBytes, jint lengthBytes,
+    jint sampleRate, jint channelCount) {
+
+    if (!byteBuffer || lengthBytes <= 0 || channelCount <= 0) return;
+
+    uint8_t* basePtr = static_cast<uint8_t*>(env->GetDirectBufferAddress(byteBuffer));
+    if (!basePtr) return;
+
+    int16_t* pcmData = reinterpret_cast<int16_t*>(basePtr + offsetBytes);
+    int32_t numSamples = lengthBytes / sizeof(int16_t);
+    int32_t numFrames = numSamples / channelCount;
+
+    if (numFrames <= 0) return;
+
+    gMedia3Equalizer.setSampleRate(static_cast<float>(sampleRate));
+    gMedia3Equalizer.process(pcmData, numFrames, channelCount);
+}
+
+JNIEXPORT void JNICALL
+Java_com_example_playback_OboeAudioBridge_nativeMedia3ProcessArray(
+    JNIEnv* env, jobject /* this */,
+    jshortArray pcmArray, jint offsetSamples, jint numSamples,
+    jint sampleRate, jint channelCount) {
+
+    if (!pcmArray || numSamples <= 0 || channelCount <= 0) return;
+
+    jshort* elements = env->GetShortArrayElements(pcmArray, nullptr);
+    if (!elements) return;
+
+    int32_t numFrames = numSamples / channelCount;
+    gMedia3Equalizer.setSampleRate(static_cast<float>(sampleRate));
+    gMedia3Equalizer.process(elements + offsetSamples, numFrames, channelCount);
+
+    env->ReleaseShortArrayElements(pcmArray, elements, 0);
 }
 
 JNIEXPORT jint JNICALL

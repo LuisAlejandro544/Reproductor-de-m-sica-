@@ -2,8 +2,11 @@ package com.example.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -57,7 +60,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -69,8 +74,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.data.TrackEntity
 import com.example.playback.AudioEngineType
 import com.example.ui.components.EngineSelectDialog
+import com.example.ui.components.EqualizerModal
 import com.example.ui.components.FullPlayerView
 import com.example.ui.components.MiniPlayer
 import com.example.ui.components.TrackListItem
@@ -100,9 +107,16 @@ fun MainMusicScreen(
     val isPlayerExpanded by viewModel.isPlayerExpanded.collectAsStateWithLifecycle()
     val isSettingsOpen by viewModel.isSettingsOpen.collectAsStateWithLifecycle()
     val isImporting by viewModel.isImporting.collectAsStateWithLifecycle()
+    val isUpdatingArtwork by viewModel.isUpdatingArtwork.collectAsStateWithLifecycle()
     val snackbarMessage by viewModel.snackbarMessage.collectAsStateWithLifecycle()
     val activeEngine by viewModel.activeEngine.collectAsStateWithLifecycle()
     val showEngineDialog by viewModel.showEngineDialog.collectAsStateWithLifecycle()
+
+    val isEqualizerOpen by viewModel.isEqualizerOpen.collectAsStateWithLifecycle()
+    val isEqualizerEnabled by viewModel.isEqualizerEnabled.collectAsStateWithLifecycle()
+    val equalizerBandGains by viewModel.equalizerBandGains.collectAsStateWithLifecycle()
+
+    var targetTrackForArtwork by remember { mutableStateOf<TrackEntity?>(null) }
 
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -110,6 +124,17 @@ fun MainMusicScreen(
         snackbarMessage?.let { msg ->
             snackbarHostState.showSnackbar(msg)
             viewModel.clearSnackbarMessage()
+        }
+    }
+
+    // Selector de carátula con Photo Picker oficial (zero-permissions)
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        uri?.let { selectedUri ->
+            targetTrackForArtwork?.let { track ->
+                viewModel.updateTrackArtwork(track, selectedUri)
+            }
         }
     }
 
@@ -122,8 +147,13 @@ fun MainMusicScreen(
         }
     }
 
+    // Back handler for closing equalizer
+    BackHandler(enabled = isEqualizerOpen) {
+        viewModel.closeEqualizer()
+    }
+
     // Back handler for collapsing full player
-    BackHandler(enabled = isPlayerExpanded) {
+    BackHandler(enabled = isPlayerExpanded && !isEqualizerOpen) {
         viewModel.setPlayerExpanded(false)
     }
 
@@ -315,6 +345,40 @@ fun MainMusicScreen(
                     }
                 }
 
+                // Banner de procesamiento de carátula en WebP (hilo secundario)
+                if (isUpdatingArtwork) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(DarkSurfaceElevated)
+                            .padding(horizontal = 20.dp, vertical = 8.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(bottom = 6.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = GreenAccent,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "Comprimiendo carátula en WebP sin pérdida...",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextPrimary
+                            )
+                        }
+                        LinearProgressIndicator(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(3.dp),
+                            color = GreenAccent,
+                            trackColor = DarkSurface
+                        )
+                    }
+                }
+
                 // Search Bar (if library has items or search is active)
                 if (tracks.isNotEmpty() || searchQuery.isNotBlank()) {
                     OutlinedTextField(
@@ -464,7 +528,13 @@ fun MainMusicScreen(
                                 isCurrent = currentTrack?.id == track.id,
                                 isPlaying = isPlaying && currentTrack?.id == track.id,
                                 onClick = { viewModel.playTrack(track) },
-                                onDelete = { viewModel.deleteTrack(track) }
+                                onDelete = { viewModel.deleteTrack(track) },
+                                onEditArtwork = {
+                                    targetTrackForArtwork = track
+                                    photoPickerLauncher.launch(
+                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                    )
+                                }
                             )
                         }
                     }
@@ -491,11 +561,17 @@ fun MainMusicScreen(
                 }
             }
 
-            // Full Player Screen (Overlaid with animation)
+            // Full Player Screen (Overlaid with smooth animation)
             AnimatedVisibility(
                 visible = isPlayerExpanded && currentTrack != null,
-                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+                enter = slideInVertically(
+                    initialOffsetY = { it },
+                    animationSpec = tween(340, easing = FastOutSlowInEasing)
+                ) + fadeIn(tween(250)),
+                exit = slideOutVertically(
+                    targetOffsetY = { it },
+                    animationSpec = tween(300, easing = FastOutSlowInEasing)
+                ) + fadeOut(tween(220)),
                 modifier = Modifier
                     .fillMaxSize()
                     .background(DarkBackground)
@@ -508,6 +584,9 @@ fun MainMusicScreen(
                         durationMs = durationMs,
                         isShuffle = isShuffle,
                         repeatMode = repeatMode,
+                        activeEngine = activeEngine,
+                        isEqualizerEnabled = isEqualizerEnabled,
+                        onOpenEqualizer = { viewModel.openEqualizer() },
                         onCollapse = { viewModel.setPlayerExpanded(false) },
                         onPlayPause = { viewModel.playPause() },
                         onNext = { viewModel.next() },
@@ -515,15 +594,49 @@ fun MainMusicScreen(
                         onSeekTo = { viewModel.seekTo(it) },
                         onToggleShuffle = { viewModel.toggleShuffle() },
                         onToggleRepeat = { viewModel.toggleRepeat() },
-                        onDeleteTrack = { viewModel.deleteTrack(it) }
+                        onDeleteTrack = { viewModel.deleteTrack(it) },
+                        onEditArtwork = { trackToEdit ->
+                            targetTrackForArtwork = trackToEdit
+                            photoPickerLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        }
                     )
                 }
             }
+
+            // Ecualizador Gráfico y Paramétrico de 10 Bandas (C++ DSP en Oboe y Media3)
+            EqualizerModal(
+                isVisible = isEqualizerOpen,
+                isEnabled = isEqualizerEnabled,
+                bandGains = equalizerBandGains,
+                activeEngine = activeEngine,
+                onToggleEnabled = { viewModel.setEqualizerEnabled(it) },
+                onBandGainChanged = { bandIndex, gainDb ->
+                    viewModel.setEqualizerBandGain(bandIndex, gainDb)
+                },
+                onSelectPreset = { preset ->
+                    viewModel.setEqualizerPreset(preset)
+                },
+                onReset = {
+                    viewModel.resetEqualizer()
+                },
+                onDismiss = {
+                    viewModel.closeEqualizer()
+                }
+            )
+
             // Settings Screen (Independent full screen with smooth animation)
             AnimatedVisibility(
                 visible = isSettingsOpen,
-                enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
-                exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut(),
+                enter = slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = tween(320, easing = FastOutSlowInEasing)
+                ) + fadeIn(tween(250)),
+                exit = slideOutHorizontally(
+                    targetOffsetX = { it },
+                    animationSpec = tween(280, easing = FastOutSlowInEasing)
+                ) + fadeOut(tween(200)),
                 modifier = Modifier
                     .fillMaxSize()
                     .background(DarkBackground)

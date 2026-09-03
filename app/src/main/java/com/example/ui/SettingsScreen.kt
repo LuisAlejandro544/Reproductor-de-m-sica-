@@ -238,6 +238,18 @@ fun SettingsScreen(
                             statusColor = GreenAccent
                         )
                         ArchitectureStatusItem(
+                            label = "Ecualizador 10 Bandas (C++)",
+                            detail = "Filtros Biquad IIR activos en Oboe y Media3 (AudioProcessor)",
+                            status = "Activo (Ambos motores)",
+                            statusColor = GreenAccent
+                        )
+                        ArchitectureStatusItem(
+                            label = "MediaSessionService",
+                            detail = "Reproducción continua en segundo plano y controles",
+                            status = "Enlazado",
+                            statusColor = GreenAccent
+                        )
+                        ArchitectureStatusItem(
                             label = "Núcleo Rust (C-ABI)",
                             detail = "Enlazado en build.gradle.kts (librust_audio.a)",
                             status = "Integrado",
