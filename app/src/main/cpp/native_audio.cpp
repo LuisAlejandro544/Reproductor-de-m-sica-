@@ -76,8 +76,19 @@ bool OboeAudioPlayer::openStream() {
         result = builder.openStream(mAudioStream);
     }
     if (result != oboe::Result::OK) {
+        {
+            std::lock_guard<std::mutex> lock(mErrorMutex);
+            mLastErrorCode = static_cast<int32_t>(result);
+            mLastErrorMsg = std::string("Fallo al abrir Oboe stream: ") + oboe::convertToText(result);
+        }
         LOGE("Failed to open Oboe audio stream: %s", oboe::convertToText(result));
         return false;
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(mErrorMutex);
+        mLastErrorCode = 0;
+        mLastErrorMsg = "Stream abierto con éxito (" + std::string(mAudioStream->getAudioApi() == oboe::AudioApi::AAudio ? "AAudio" : "OpenSLES") + ")";
     }
 
     LOGI("Oboe stream opened successfully: rate=%d, channels=%d, bufferSize=%d, api=%s",
@@ -127,7 +138,12 @@ bool OboeAudioPlayer::loadFile(const std::string& filePath) {
 bool OboeAudioPlayer::decodeAudioFile(const std::string& filePath) {
     int fd = open(filePath.c_str(), O_RDONLY);
     if (fd < 0) {
-        LOGE("Failed to open file: %s", filePath.c_str());
+        {
+            std::lock_guard<std::mutex> lock(mErrorMutex);
+            mLastErrorCode = errno;
+            mLastErrorMsg = std::string("No se pudo abrir descriptor de archivo: ") + strerror(errno);
+        }
+        LOGE("Failed to open file: %s (errno: %d - %s)", filePath.c_str(), errno, strerror(errno));
         return false;
     }
 
@@ -447,6 +463,11 @@ void OboeAudioPlayer::resetEqualizer() {
 
 void OboeAudioPlayer::onErrorAfterClose(oboe::AudioStream *oboeStream, oboe::Result error) {
     LOGW("Oboe stream error after close: %s", oboe::convertToText(error));
+    {
+        std::lock_guard<std::mutex> lock(mErrorMutex);
+        mLastErrorCode = static_cast<int32_t>(error);
+        mLastErrorMsg = std::string("Stream error after close: ") + oboe::convertToText(error);
+    }
     if (mIsPlaying.load()) {
         closeStream();
         if (openStream()) {
@@ -456,3 +477,53 @@ void OboeAudioPlayer::onErrorAfterClose(oboe::AudioStream *oboeStream, oboe::Res
         }
     }
 }
+
+int32_t OboeAudioPlayer::getLastErrorCode() const {
+    std::lock_guard<std::mutex> lock(mErrorMutex);
+    return mLastErrorCode;
+}
+
+std::string OboeAudioPlayer::getLastErrorMsg() const {
+    std::lock_guard<std::mutex> lock(mErrorMutex);
+    return mLastErrorMsg;
+}
+
+std::string OboeAudioPlayer::getAudioDeviceInfo() const {
+    if (!mAudioStream) {
+        return "Stream inactivo o cerrado";
+    }
+    std::string api = (mAudioStream->getAudioApi() == oboe::AudioApi::AAudio) ? "AAudio (Baja Latencia)" : "OpenSL ES";
+    std::string state = oboe::convertToText(mAudioStream->getState());
+    int32_t sr = mAudioStream->getSampleRate();
+    int32_t ch = mAudioStream->getChannelCount();
+    int32_t buf = mAudioStream->getBufferSizeInFrames();
+    int32_t deviceId = mAudioStream->getDeviceId();
+
+    return "API=" + api + " | Estado=" + state + " | SR=" + std::to_string(sr) +
+           "Hz | Ch=" + std::to_string(ch) + " | Buffer=" + std::to_string(buf) +
+           " frames | DeviceId=" + std::to_string(deviceId);
+}
+
+std::string OboeAudioPlayer::getStreamStatsJson() const {
+    int32_t sr = mAudioStream ? mAudioStream->getSampleRate() : mSampleRate;
+    int32_t ch = mAudioStream ? mAudioStream->getChannelCount() : mChannelCount;
+    int32_t buf = mAudioStream ? mAudioStream->getBufferSizeInFrames() : 0;
+    int32_t underrun = 0;
+    if (mAudioStream) {
+        auto xrun = mAudioStream->getXRunCount();
+        if (xrun) {
+            underrun = xrun.value();
+        }
+    }
+    std::string api = mAudioStream ? ((mAudioStream->getAudioApi() == oboe::AudioApi::AAudio) ? "AAudio" : "OpenSLES") : "None";
+
+    return "{\"sampleRate\":" + std::to_string(sr) +
+           ",\"channelCount\":" + std::to_string(ch) +
+           ",\"bufferFrames\":" + std::to_string(buf) +
+           ",\"underruns\":" + std::to_string(underrun) +
+           ",\"api\":\"" + api +
+           "\",\"isPlaying\":" + (mIsPlaying.load() ? "true" : "false") +
+           ",\"lastErrorCode\":" + std::to_string(getLastErrorCode()) +
+           ",\"lastErrorMsg\":\"" + getLastErrorMsg() + "\"}";
+}
+

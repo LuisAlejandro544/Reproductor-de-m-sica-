@@ -41,6 +41,12 @@ public:
     float getEqualizerBandGain(int bandIndex) const;
     void resetEqualizer();
 
+    // Diagnósticos y Códigos de Error Crudos para Depuración
+    int32_t getLastErrorCode() const;
+    std::string getLastErrorMsg() const;
+    std::string getAudioDeviceInfo() const;
+    std::string getStreamStatsJson() const;
+
     // oboe::AudioStreamDataCallback
     oboe::DataCallbackResult onAudioReady(
         oboe::AudioStream *oboeStream,
@@ -72,4 +78,7 @@ private:
     TenBandEqualizer mEqualizer;
 
     mutable std::mutex mBufferMutex;
+    mutable std::mutex mErrorMutex;
+    int32_t mLastErrorCode = 0;
+    std::string mLastErrorMsg = "OK";
 };

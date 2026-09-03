@@ -8,12 +8,15 @@ import android.os.Build
 import android.util.Log
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.DefaultAudioSink
 import com.example.data.TrackEntity
+import com.example.debug.DebugLogLevel
+import com.example.debug.DebugLogManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -26,12 +29,23 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
+/**
+ * Modo de repetición de la reproducción.
+ */
 enum class PlaybackRepeatMode {
     OFF,
     ALL,
     ONE
 }
 
+/**
+ * Orquestador principal de reproducción de audio para Ritmo.
+ *
+ * Arquitectura modular:
+ * - Delega la gestión de cola, shuffle y repetición en [PlaybackQueueManager].
+ * - Delega la configuración del ecualizador DSP de 10 bandas en [EqualizerController].
+ * - Orquesta la conmutación sin fisuras entre ExoPlayer (Media3) y Google Oboe (C++ Nativo).
+ */
 class AudioPlayerManager(private val context: Context) {
 
     companion object {
@@ -39,8 +53,6 @@ class AudioPlayerManager(private val context: Context) {
         private const val PREFS_NAME = "ritmo_audio_prefs"
         private const val KEY_AUDIO_ENGINE = "selected_audio_engine"
         private const val KEY_ENGINE_PROMPTED = "engine_selection_prompted"
-        private const val KEY_EQ_ENABLED = "eq_enabled"
-        private const val KEY_EQ_BAND_PREFIX = "eq_band_"
 
         @Volatile
         private var instance: AudioPlayerManager? = null
@@ -58,6 +70,12 @@ class AudioPlayerManager(private val context: Context) {
     private val playerScope = CoroutineScope(Dispatchers.Main + Job())
     private var progressJob: Job? = null
     private var playJob: Job? = null
+
+    // Submódulos desacoplados
+    val queueManager = PlaybackQueueManager()
+    val equalizerController = EqualizerController(context) { enabled, gains ->
+        applyEqualizerToEngines(enabled, gains)
+    }
 
     private val equalizerAudioProcessor = Media3EqualizerAudioProcessor()
 
@@ -80,8 +98,9 @@ class AudioPlayerManager(private val context: Context) {
     private val _activeEngine = MutableStateFlow(loadSavedEngine())
     val activeEngine: StateFlow<AudioEngineType> = _activeEngine.asStateFlow()
 
-    private val _currentTrack = MutableStateFlow<TrackEntity?>(null)
-    val currentTrack: StateFlow<TrackEntity?> = _currentTrack.asStateFlow()
+    val currentTrack: StateFlow<TrackEntity?> = queueManager.currentTrack
+    val isShuffle: StateFlow<Boolean> = queueManager.isShuffle
+    val repeatMode: StateFlow<PlaybackRepeatMode> = queueManager.repeatMode
 
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
@@ -92,29 +111,15 @@ class AudioPlayerManager(private val context: Context) {
     private val _duration = MutableStateFlow(0L)
     val duration: StateFlow<Long> = _duration.asStateFlow()
 
-    private val _repeatMode = MutableStateFlow(PlaybackRepeatMode.OFF)
-    val repeatMode: StateFlow<PlaybackRepeatMode> = _repeatMode.asStateFlow()
-
-    private val _isShuffle = MutableStateFlow(false)
-    val isShuffle: StateFlow<Boolean> = _isShuffle.asStateFlow()
-
-    // Estado del Ecualizador Paramétrico de 10 Bandas (C++)
-    private val _isEqualizerEnabled = MutableStateFlow(sharedPrefs.getBoolean(KEY_EQ_ENABLED, false))
-    val isEqualizerEnabled: StateFlow<Boolean> = _isEqualizerEnabled.asStateFlow()
-
-    private val _equalizerBandGains = MutableStateFlow(loadSavedEqGains())
-    val equalizerBandGains: StateFlow<List<Float>> = _equalizerBandGains.asStateFlow()
-
-    private var currentPlaylist: List<TrackEntity> = emptyList()
-    private var shuffledIndices: List<Int> = emptyList()
-    private var currentShuffleIndex = 0
+    val isEqualizerEnabled: StateFlow<Boolean> = equalizerController.isEqualizerEnabled
+    val equalizerBandGains: StateFlow<List<Float>> = equalizerController.equalizerBandGains
 
     init {
-        // Inicializar motor nativo y sincronizar el estado del ecualizador C++ para ambos motores
+        // Inicializar Oboe y sincronizar ecualizador
         if (OboeAudioBridge.isNativeReady()) {
             OboeAudioBridge.nativeInit()
-            applyEqualizerToNative()
         }
+        equalizerController.initialize()
 
         exoPlayer.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -135,7 +140,7 @@ class AudioPlayerManager(private val context: Context) {
                             _duration.value = if (exoPlayer.duration > 0) {
                                 exoPlayer.duration
                             } else {
-                                (_currentTrack.value?.durationMs ?: 0L)
+                                (currentTrack.value?.durationMs ?: 0L)
                             }
                         }
                         Player.STATE_ENDED -> {
@@ -144,6 +149,20 @@ class AudioPlayerManager(private val context: Context) {
                         else -> {}
                     }
                 }
+            }
+
+            override fun onPlayerError(error: PlaybackException) {
+                val errorCode = error.errorCode
+                val errorName = error.errorCodeName
+                val msg = "ExoPlayer Error [$errorCode - $errorName]: ${error.message}"
+                Log.e(TAG, msg, error)
+                DebugLogManager.logError(
+                    tag = "ExoPlayer",
+                    message = msg,
+                    rawErrorCode = errorCode,
+                    throwable = error,
+                    details = "Caused by: ${error.cause?.message}"
+                )
             }
         })
     }
@@ -157,55 +176,16 @@ class AudioPlayerManager(private val context: Context) {
         }
     }
 
-    private fun loadSavedEqGains(): List<Float> {
-        return List(EqualizerDefaults.NUM_BANDS) { index ->
-            sharedPrefs.getFloat(KEY_EQ_BAND_PREFIX + index, 0.0f)
-        }
-    }
+    // Funciones de ecualizador delegadas a EqualizerController
+    fun setEqualizerEnabled(enabled: Boolean) = equalizerController.setEqualizerEnabled(enabled)
+    fun setEqualizerBandGain(bandIndex: Int, gainDb: Float) = equalizerController.setEqualizerBandGain(bandIndex, gainDb)
+    fun setEqualizerPreset(preset: EqualizerPreset) = equalizerController.setEqualizerPreset(preset)
+    fun resetEqualizer() = equalizerController.resetEqualizer()
 
-    fun setEqualizerEnabled(enabled: Boolean) {
-        _isEqualizerEnabled.value = enabled
-        sharedPrefs.edit().putBoolean(KEY_EQ_ENABLED, enabled).apply()
+    private fun applyEqualizerToEngines(enabled: Boolean, gains: List<Float>) {
         if (OboeAudioBridge.isNativeReady()) {
             OboeAudioBridge.nativeSetEqualizerEnabled(enabled)
-        }
-    }
-
-    fun setEqualizerBandGain(bandIndex: Int, gainDb: Float) {
-        if (bandIndex !in 0 until EqualizerDefaults.NUM_BANDS) return
-        val current = _equalizerBandGains.value.toMutableList()
-        current[bandIndex] = gainDb.coerceIn(EqualizerDefaults.MIN_GAIN_DB, EqualizerDefaults.MAX_GAIN_DB)
-        _equalizerBandGains.value = current
-        sharedPrefs.edit().putFloat(KEY_EQ_BAND_PREFIX + bandIndex, current[bandIndex]).apply()
-        if (OboeAudioBridge.isNativeReady()) {
-            OboeAudioBridge.nativeSetEqualizerBandGain(bandIndex, current[bandIndex])
-        }
-    }
-
-    fun setEqualizerPreset(preset: EqualizerPreset) {
-        val gains = preset.gains.take(EqualizerDefaults.NUM_BANDS)
-        _equalizerBandGains.value = gains
-        val editor = sharedPrefs.edit()
-        gains.forEachIndexed { index, gain ->
-            editor.putFloat(KEY_EQ_BAND_PREFIX + index, gain)
-            if (OboeAudioBridge.isNativeReady()) {
-                OboeAudioBridge.nativeSetEqualizerBandGain(index, gain)
-            }
-        }
-        editor.apply()
-    }
-
-    fun resetEqualizer() {
-        setEqualizerPreset(EqualizerDefaults.PRESETS.first { it.id == "flat" })
-        if (OboeAudioBridge.isNativeReady()) {
-            OboeAudioBridge.nativeResetEqualizer()
-        }
-    }
-
-    private fun applyEqualizerToNative() {
-        if (OboeAudioBridge.isNativeReady()) {
-            OboeAudioBridge.nativeSetEqualizerEnabled(_isEqualizerEnabled.value)
-            _equalizerBandGains.value.forEachIndexed { index, gain ->
+            gains.forEachIndexed { index, gain ->
                 OboeAudioBridge.nativeSetEqualizerBandGain(index, gain)
             }
         }
@@ -220,22 +200,17 @@ class AudioPlayerManager(private val context: Context) {
                 context.startService(intent)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "No se pudo iniciar el servicio en primer plano MediaSessionService", e)
+            Log.e(TAG, "No se pudo iniciar el servicio MediaSessionService", e)
         }
     }
 
-    fun hasPromptedEngineSelection(): Boolean {
-        return sharedPrefs.getBoolean(KEY_ENGINE_PROMPTED, false)
-    }
-
-    fun markEngineSelectionPrompted() {
-        sharedPrefs.edit().putBoolean(KEY_ENGINE_PROMPTED, true).apply()
-    }
+    fun hasPromptedEngineSelection(): Boolean = sharedPrefs.getBoolean(KEY_ENGINE_PROMPTED, false)
+    fun markEngineSelectionPrompted() = sharedPrefs.edit().putBoolean(KEY_ENGINE_PROMPTED, true).apply()
 
     fun setAudioEngine(newEngine: AudioEngineType) {
         if (_activeEngine.value == newEngine) return
         val wasPlaying = _isPlaying.value
-        val track = _currentTrack.value
+        val track = currentTrack.value
         val position = _currentPosition.value
 
         // Detener motor anterior
@@ -253,7 +228,7 @@ class AudioPlayerManager(private val context: Context) {
         markEngineSelectionPrompted()
         Log.i(TAG, "Audio engine switched to: ${newEngine.name}")
 
-        // Reanudar en el nuevo motor si había pista activa
+        // Reanudar en caliente en el nuevo motor
         if (track != null) {
             playJob?.cancel()
             playJob = playerScope.launch(Dispatchers.IO) {
@@ -270,7 +245,6 @@ class AudioPlayerManager(private val context: Context) {
                             }
                         }
                     } else {
-                        // Fallback a ExoPlayer si el decodificador nativo no pudo abrir el archivo
                         withContext(Dispatchers.Main) {
                             _activeEngine.value = AudioEngineType.EXOPLAYER
                             playTrackWithExoPlayer(track, position, wasPlaying)
@@ -285,250 +259,181 @@ class AudioPlayerManager(private val context: Context) {
         }
     }
 
-    private fun buildMediaItem(track: TrackEntity): MediaItem {
-        val file = File(track.filePath)
-        val uri = if (file.exists()) Uri.fromFile(file) else Uri.parse(track.filePath)
-        val metadata = MediaMetadata.Builder()
+    fun updatePlaylist(tracks: List<TrackEntity>) {
+        queueManager.updatePlaylist(tracks)
+    }
+
+    fun updateCurrentTrack(track: TrackEntity) {
+        queueManager.updateCurrentTrack(track)
+    }
+
+    fun playTrack(track: TrackEntity, playlist: List<TrackEntity> = emptyList()) {
+        if (playlist.isNotEmpty()) {
+            queueManager.updatePlaylist(playlist)
+        }
+        queueManager.selectTrack(track)
+        playCurrentTrack()
+    }
+
+    private fun playCurrentTrack() {
+        val track = currentTrack.value ?: return
+        playJob?.cancel()
+        playJob = playerScope.launch(Dispatchers.IO) {
+            val audioFile = File(track.filePath)
+            if (!audioFile.exists()) {
+                val msg = "Archivo de audio no encontrado: ${track.filePath}"
+                Log.e(TAG, msg)
+                DebugLogManager.log(
+                    tag = "AudioPlayerManager",
+                    message = msg,
+                    level = DebugLogLevel.ERROR,
+                    rawErrorCode = 404,
+                    details = "Pista: ${track.title} por ${track.artist}"
+                )
+                withContext(Dispatchers.Main) {
+                    _isPlaying.value = false
+                    stopProgressTracker()
+                }
+                return@launch
+            }
+
+            if (_activeEngine.value == AudioEngineType.OBOE_CPP && OboeAudioBridge.isNativeReady()) {
+                try {
+                    OboeAudioBridge.nativeInit()
+                    val loaded = OboeAudioBridge.nativeLoadFile(track.filePath)
+                    if (loaded) {
+                        OboeAudioBridge.nativePlay()
+                        withContext(Dispatchers.Main) {
+                            _isPlaying.value = true
+                            _duration.value = if (track.durationMs > 0) track.durationMs else OboeAudioBridge.nativeGetDuration()
+                            _currentPosition.value = 0L
+                            startProgressTracker()
+                        }
+                        return@launch
+                    } else {
+                        val oboeErr = OboeAudioBridge.getLastErrorCodeSafe()
+                        val oboeErrStr = OboeAudioBridge.getLastErrorStringSafe()
+                        Log.w(TAG, "Oboe no pudo abrir $track (Error $oboeErr: $oboeErrStr). Fallback a ExoPlayer.")
+                        DebugLogManager.log(
+                            tag = "OboePlayer",
+                            message = "Fallo decodificación Oboe C++ ($oboeErr: $oboeErrStr). Conmutando a ExoPlayer.",
+                            level = DebugLogLevel.WARN,
+                            rawErrorCode = oboeErr
+                        )
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error en motor Oboe C++", e)
+                }
+            }
+
+            // ExoPlayer (Estándar o Fallback)
+            withContext(Dispatchers.Main) {
+                playTrackWithExoPlayer(track, 0L, true)
+            }
+        }
+    }
+
+    private fun playTrackWithExoPlayer(track: TrackEntity, startPositionMs: Long = 0L, playWhenReady: Boolean = true) {
+        val mediaMetadata = MediaMetadata.Builder()
             .setTitle(track.title)
             .setArtist(track.artist)
             .setAlbumTitle(track.album)
-            .apply {
-                if (!track.artworkPath.isNullOrBlank()) {
-                    setArtworkUri(Uri.parse(track.artworkPath))
-                }
-            }
+            .setArtworkUri(track.artworkPath?.let { Uri.fromFile(File(it)) })
             .build()
-        return MediaItem.Builder()
-            .setMediaId(track.id.toString())
-            .setMediaMetadata(metadata)
-            .setUri(uri)
-            .build()
-    }
 
-    private fun syncExoPlayerMetadata(track: TrackEntity) {
-        val mediaItem = buildMediaItem(track)
+        val mediaItem = MediaItem.Builder()
+            .setUri(Uri.fromFile(File(track.filePath)))
+            .setMediaMetadata(mediaMetadata)
+            .build()
+
         exoPlayer.setMediaItem(mediaItem)
         exoPlayer.prepare()
-    }
-
-    fun updateCurrentTrack(updatedTrack: TrackEntity) {
-        if (_currentTrack.value?.id == updatedTrack.id) {
-            _currentTrack.value = updatedTrack
-            currentPlaylist = currentPlaylist.map { if (it.id == updatedTrack.id) updatedTrack else it }
-            if (_activeEngine.value == AudioEngineType.EXOPLAYER) {
-                val mediaItem = buildMediaItem(updatedTrack)
-                val currentPos = exoPlayer.currentPosition
-                val isPlayingNow = exoPlayer.isPlaying
-                exoPlayer.setMediaItem(mediaItem, currentPos)
-                if (isPlayingNow) {
-                    exoPlayer.play()
-                }
-            } else {
-                syncExoPlayerMetadata(updatedTrack)
-            }
+        if (startPositionMs > 0L) {
+            exoPlayer.seekTo(startPositionMs)
         }
-    }
-
-    private fun playTrackWithExoPlayer(track: TrackEntity, position: Long = 0L, autoPlay: Boolean = true) {
-        val mediaItem = buildMediaItem(track)
-        exoPlayer.setMediaItem(mediaItem)
-        exoPlayer.prepare()
-        if (position > 0) {
-            exoPlayer.seekTo(position)
-        }
-        if (autoPlay) {
-            exoPlayer.play()
+        exoPlayer.playWhenReady = playWhenReady
+        if (playWhenReady) {
             _isPlaying.value = true
             startProgressTracker()
-            startBackgroundService()
         }
     }
 
-    fun playTrack(track: TrackEntity, playlist: List<TrackEntity>) {
-        currentPlaylist = playlist
-        updateShuffleIndices()
-        _currentTrack.value = track
-        _duration.value = if (track.durationMs > 0) track.durationMs else 0L
+    fun play() {
+        if (_activeEngine.value == AudioEngineType.OBOE_CPP && OboeAudioBridge.isNativeReady()) {
+            OboeAudioBridge.nativePlay()
+            _isPlaying.value = true
+            startProgressTracker()
+        } else {
+            exoPlayer.play()
+        }
+    }
 
-        startBackgroundService()
-
-        playJob?.cancel()
-        playJob = playerScope.launch(Dispatchers.IO) {
-            if (_activeEngine.value == AudioEngineType.OBOE_CPP && OboeAudioBridge.isNativeReady()) {
-                withContext(Dispatchers.Main) {
-                    exoPlayer.pause()
-                    syncExoPlayerMetadata(track)
-                }
-                OboeAudioBridge.nativeInit()
-                applyEqualizerToNative()
-                val loaded = OboeAudioBridge.nativeLoadFile(track.filePath)
-                if (loaded) {
-                    OboeAudioBridge.nativePlay()
-                    withContext(Dispatchers.Main) {
-                        _isPlaying.value = true
-                        val oboeDur = OboeAudioBridge.nativeGetDuration()
-                        if (oboeDur > 0) {
-                            _duration.value = oboeDur
-                        }
-                        startProgressTracker()
-                    }
-                    return@launch
-                } else {
-                    Log.w(TAG, "Oboe engine failed to load track, falling back to ExoPlayer")
-                    withContext(Dispatchers.Main) {
-                        _activeEngine.value = AudioEngineType.EXOPLAYER
-                    }
-                }
-            }
-
-            // ExoPlayer
-            withContext(Dispatchers.Main) {
-                if (OboeAudioBridge.isNativeReady()) {
-                    OboeAudioBridge.nativePause()
-                }
-                playTrackWithExoPlayer(track, 0L, autoPlay = true)
-            }
+    fun pause() {
+        if (_activeEngine.value == AudioEngineType.OBOE_CPP && OboeAudioBridge.isNativeReady()) {
+            OboeAudioBridge.nativePause()
+            _isPlaying.value = false
+            stopProgressTracker()
+        } else {
+            exoPlayer.pause()
         }
     }
 
     fun playPause() {
-        startBackgroundService()
-        if (_currentTrack.value == null && currentPlaylist.isNotEmpty()) {
-            playTrack(currentPlaylist[0], currentPlaylist)
-            return
-        }
-
-        if (_activeEngine.value == AudioEngineType.OBOE_CPP && OboeAudioBridge.isNativeReady()) {
-            if (_isPlaying.value) {
-                OboeAudioBridge.nativePause()
-                _isPlaying.value = false
-                stopProgressTracker()
-            } else {
-                OboeAudioBridge.nativePlay()
-                _isPlaying.value = true
-                startProgressTracker()
-            }
+        if (_isPlaying.value) {
+            pause()
         } else {
-            if (exoPlayer.isPlaying) {
-                exoPlayer.pause()
-                _isPlaying.value = false
-                stopProgressTracker()
-            } else {
-                exoPlayer.play()
-                _isPlaying.value = true
-                startProgressTracker()
-            }
+            play()
         }
     }
 
     fun seekTo(positionMs: Long) {
-        val clamped = positionMs.coerceIn(0L, _duration.value.coerceAtLeast(0L))
-        _currentPosition.value = clamped
-
+        _currentPosition.value = positionMs
         if (_activeEngine.value == AudioEngineType.OBOE_CPP && OboeAudioBridge.isNativeReady()) {
-            OboeAudioBridge.nativeSeekTo(clamped)
+            OboeAudioBridge.nativeSeekTo(positionMs)
         } else {
-            exoPlayer.seekTo(clamped)
+            exoPlayer.seekTo(positionMs)
         }
     }
 
     fun next() {
-        if (currentPlaylist.isEmpty()) return
-        val current = _currentTrack.value ?: return
-        val currentIndex = currentPlaylist.indexOfFirst { it.id == current.id }
-        if (currentIndex == -1) return
-
-        if (_isShuffle.value && shuffledIndices.isNotEmpty()) {
-            currentShuffleIndex = (currentShuffleIndex + 1) % shuffledIndices.size
-            val nextTrackIndex = shuffledIndices[currentShuffleIndex]
-            playTrack(currentPlaylist[nextTrackIndex], currentPlaylist)
+        val nextTrack = queueManager.getNextTrack(forceAdvance = true)
+        if (nextTrack != null) {
+            playCurrentTrack()
         } else {
-            val nextIndex = currentIndex + 1
-            if (nextIndex < currentPlaylist.size) {
-                playTrack(currentPlaylist[nextIndex], currentPlaylist)
-            } else if (_repeatMode.value == PlaybackRepeatMode.ALL) {
-                playTrack(currentPlaylist[0], currentPlaylist)
-            }
+            seekTo(0L)
+            pause()
         }
     }
 
     fun previous() {
-        if (currentPlaylist.isEmpty()) return
-        val curPos = _currentPosition.value
-        if (curPos > 3000L) {
+        if (_currentPosition.value > 3000L) {
             seekTo(0L)
             return
         }
-
-        val current = _currentTrack.value ?: return
-        val currentIndex = currentPlaylist.indexOfFirst { it.id == current.id }
-        if (currentIndex == -1) return
-
-        if (_isShuffle.value && shuffledIndices.isNotEmpty()) {
-            currentShuffleIndex = if (currentShuffleIndex - 1 < 0) {
-                shuffledIndices.lastIndex
-            } else {
-                currentShuffleIndex - 1
-            }
-            val prevTrackIndex = shuffledIndices[currentShuffleIndex]
-            playTrack(currentPlaylist[prevTrackIndex], currentPlaylist)
+        val prevTrack = queueManager.getPreviousTrack()
+        if (prevTrack != null) {
+            playCurrentTrack()
         } else {
-            val prevIndex = currentIndex - 1
-            if (prevIndex >= 0) {
-                playTrack(currentPlaylist[prevIndex], currentPlaylist)
-            } else if (_repeatMode.value == PlaybackRepeatMode.ALL) {
-                playTrack(currentPlaylist[currentPlaylist.lastIndex], currentPlaylist)
-            } else {
-                seekTo(0L)
-            }
+            seekTo(0L)
         }
     }
 
-    fun toggleRepeat() {
-        _repeatMode.value = when (_repeatMode.value) {
-            PlaybackRepeatMode.OFF -> PlaybackRepeatMode.ALL
-            PlaybackRepeatMode.ALL -> PlaybackRepeatMode.ONE
-            PlaybackRepeatMode.ONE -> PlaybackRepeatMode.OFF
-        }
-    }
+    fun toggleShuffle(): Boolean = queueManager.toggleShuffle()
 
-    fun toggleShuffle() {
-        _isShuffle.value = !_isShuffle.value
-        if (_isShuffle.value) {
-            updateShuffleIndices()
-        }
-    }
-
-    private fun updateShuffleIndices() {
-        if (currentPlaylist.isEmpty()) return
-        shuffledIndices = currentPlaylist.indices.shuffled()
-        val current = _currentTrack.value
-        if (current != null) {
-            val idx = currentPlaylist.indexOfFirst { it.id == current.id }
-            val shuffPos = shuffledIndices.indexOf(idx)
-            if (shuffPos != -1) {
-                currentShuffleIndex = shuffPos
-            }
-        }
-    }
+    fun toggleRepeat(): PlaybackRepeatMode = queueManager.toggleRepeat()
 
     private fun startProgressTracker() {
-        progressJob?.cancel()
+        stopProgressTracker()
         progressJob = playerScope.launch {
             while (isActive) {
                 if (_activeEngine.value == AudioEngineType.OBOE_CPP && OboeAudioBridge.isNativeReady()) {
                     val pos = OboeAudioBridge.nativeGetPosition()
                     val dur = OboeAudioBridge.nativeGetDuration()
-                    val isPlayingNow = OboeAudioBridge.nativeIsPlaying()
-
                     _currentPosition.value = pos
                     if (dur > 0) _duration.value = dur
-                    if (_isPlaying.value != isPlayingNow) {
-                        _isPlaying.value = isPlayingNow
-                        if (!isPlayingNow && dur > 0 && pos >= dur - 200) {
-                            handleTrackEnded()
-                            break
-                        }
+                    if (dur > 0 && pos >= dur) {
+                        handleTrackEnded()
+                        break
                     }
                 } else {
                     _currentPosition.value = exoPlayer.currentPosition
@@ -536,22 +441,18 @@ class AudioPlayerManager(private val context: Context) {
                         _duration.value = exoPlayer.duration
                     }
                 }
-                delay(200L)
+                delay(250)
             }
         }
     }
 
     private fun stopProgressTracker() {
         progressJob?.cancel()
-        if (_activeEngine.value == AudioEngineType.OBOE_CPP && OboeAudioBridge.isNativeReady()) {
-            _currentPosition.value = OboeAudioBridge.nativeGetPosition()
-        } else {
-            _currentPosition.value = exoPlayer.currentPosition
-        }
+        progressJob = null
     }
 
     private fun handleTrackEnded() {
-        when (_repeatMode.value) {
+        when (repeatMode.value) {
             PlaybackRepeatMode.ONE -> {
                 seekTo(0L)
                 if (_activeEngine.value == AudioEngineType.OBOE_CPP && OboeAudioBridge.isNativeReady()) {
@@ -566,10 +467,9 @@ class AudioPlayerManager(private val context: Context) {
                 next()
             }
             PlaybackRepeatMode.OFF -> {
-                val current = _currentTrack.value
-                val currentIndex = currentPlaylist.indexOfFirst { it.id == current?.id }
-                if (currentIndex != -1 && currentIndex < currentPlaylist.lastIndex) {
-                    next()
+                val nextTrack = queueManager.getNextTrack(forceAdvance = false)
+                if (nextTrack != null) {
+                    playCurrentTrack()
                 } else {
                     _isPlaying.value = false
                     seekTo(0L)

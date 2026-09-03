@@ -1,11 +1,15 @@
 [package]
 name = "ritmo_rust"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
-description = "Núcleo nativo en Rust para el reproductor de música Ritmo"
+description = "Núcleo nativo en Rust para Ritmo Music Player: Extractor e Indexador de Metadatos de Audio Audiófilo"
 
 [lib]
 name = "ritmo_rust"
-crate-type = ["staticlib", "cdylib"]
+crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
+# Dependencias estándar del ecosistema Rust para JNI y serialización segura
+jni = { version = "0.21", default-features = false }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"

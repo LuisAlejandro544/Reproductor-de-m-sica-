@@ -1,15 +1,24 @@
-feat(equalizer, storage): ecualizador 10 bandas C++ y almacenamiento modular con carátulas WebP sin pérdida
+feat(rust-metadata, debug-tools, modular-architecture): núcleo nativo de metadatos audiófilo en Rust, suite avanzada de debug (Timber, LeakCanary, CrashHandler) y refactorización modular completa
 
-- Implementado ecualizador paramétrico y gráfico de 10 bandas (31Hz a 16kHz, -12dB a +12dB) con filtros Biquad IIR en C++ a nivel de muestra PCM en tiempo real.
-- Creado 'Media3EqualizerAudioProcessor' para inyectar el filtrado C++ en el AudioSink de ExoPlayer/Media3 vía JNI ('nativeMedia3ProcessDirect'), logrando la misma respuesta acústica en ambos motores.
-- Diseñado el modal táctil de ecualización en Jetpack Compose ('EqualizerModal.kt') con preajustes de audio (Plano, Graves, Agudos, Vocal, Rock, Pop, Clásica), indicador del motor activo y controles táctiles de 48dp.
-- Unificada la disponibilidad del ecualizador en 'FullPlayerView.kt' y 'SettingsScreen.kt' tanto para el motor Oboe C++ como para ExoPlayer (Media3).
-- Integrado 'RitmoMediaSessionService' extendiendo MediaSessionService para soporte de controles en segundo plano, pantalla de bloqueo y barra de notificaciones del sistema.
-- Mejoradas las animaciones de la interfaz de usuario: transición elástica (spring) en carátula, AnimatedContent en botones de reproducción/pausa, barras visualizadoras animadas en pistas activas y curvas de aceleración suaves (FastOutSlowInEasing) en el reproductor completo y ajustes.
-- Expuestos los métodos nativos de procesamiento por bloque PCM ('nativeMedia3ProcessDirect', 'nativeMedia3ProcessArray') y control de bandas en 'native_bridge.cpp' y 'OboeAudioBridge.kt'.
-- Enlazado el estado del ecualizador y sincronización automática entre motores en 'AudioPlayerManager' y 'MusicPlayerViewModel'.
-- Implementada arquitectura de almacenamiento modular en 'Android/data/<package>/files/' con subdirectorios dedicados: 'music/' para audio, 'covers/' para imágenes y 'artists/' para metadatos JSON modulares independientes por pista.
-- Añadido 'AppStorageManager.kt' para orquestar la estructura de carpetas y la generación/lectura/eliminación atómica de archivos '.json' individuales por pista.
-- Creado 'ArtworkProcessor.kt' para asignar o cambiar carátulas a cualquier canción (tenga o no previa), con conversión a formato WebP a máxima compresión sin pérdida (Lossless WebP) ejecutada en hilo secundario ('Dispatchers.IO').
-- Integrado selector visual de carátulas (Photo Picker oficial de Android sin permisos invasivos) accesible con un toque en 'FullPlayerView' y desde el menú contextual de cada pista en 'TrackListItem'.
-- Actualizado 'TrackRepository', 'TrackDao' y 'MusicPlayerViewModel' para sincronizar dinámicamente la ruta de la nueva carátula y el archivo JSON modular en tiempo real.
+- Integrado extractor e indexador de metadatos audiófilo nativo en Rust ('ritmo_rust') para el análisis profundo de tags ID3v1, ID3v2, FLAC/Vorbis, Opus y APE directamente desde el núcleo nativo sin intermediación de Kotlin.
+- Implementada la función de edición y actualización de metadatos (título y artista) directamente en Rust con re-análisis nativo automático de tags y detección de álbum.
+- Añadido el puente JNI y C-ABI en 'native_bridge.cpp' y 'RustAudioEngine.kt' ('nativeExtractMetadata', 'nativeExtractArtwork', 'nativeUpdateMetadata', 'nativeRustPing', 'nativeRustVersion').
+- Refactorizado 'MusicImporter.kt' para procesar la extracción e indexación de audio exclusivamente a través del analizador de Rust.
+- Añadida consulta y mutación 'updateTrackMetadata' en 'TrackDao' y 'TrackRepository' con sincronización del archivo JSON modular en 'AppStorageManager'.
+- Diseñado el diálogo táctil en Jetpack Compose 'EditTrackMetadataDialog.kt' para modificar título y artista con procesamiento y confirmación de Rust.
+- Creada la infraestructura de depuración avanzada 'DebugLogManager.kt' con registro en memoria de eventos, filtrado de severidades y códigos de error numéricos crudos.
+- Implementados métodos de diagnóstico y telemetría en C++ Oboe ('nativeGetLastErrorCode', 'nativeGetLastErrorString', 'nativeGetAudioDeviceInfo', 'nativeGetStreamStatsJson') protegidos por 'mErrorMutex' en 'native_audio.cpp'.
+- Conectada la captura de errores en 'AudioPlayerManager.kt' para interceptar códigos crudos numéricos de Oboe (-998 a 0) y ExoPlayer ('PlaybackException.errorCode') con registro automático en 'DebugLogManager'.
+- Diseñado el modal táctil 'DebugConsoleModal.kt' para inspección en tiempo real de logs crudos, estado de motores (C++ Oboe y Rust) y botón de copia del reporte completo al portapapeles, pensado para desarrollo en smartphone sin PC ni ADB.
+- Creado 'RawErrorDialog.kt' para alertar al usuario con el código numérico crudo ante anomalías y permitir copiarlo o abrir la consola técnica con un toque.
+- Integrado el acceso a la Consola de Debug en la barra superior de 'MainMusicScreen.kt' y en una sección dedicada dentro de 'SettingsScreen.kt'.
+- Implementada la función de copia individual de cada evento de log en 'DebugConsoleModal.kt' mediante botón táctil ergonómico de 48dp y tap directo con confirmación de portapapeles.
+- Creado el generador procedural audiófilo de portadas en 'ArtworkProcessor.kt' ('generateProceduralArtworkLosslessWebP') que genera automáticamente un arte determinista en WebP sin pérdida con gradientes armónicos, ondas acústicas, espectro procedural y monograma tipográfico para pistas sin carátula embebida.
+- Conectada la generación procedural automática en 'MusicImporter.kt' al importar canciones y en 'MusicPlayerViewModel.kt' para inicializar pistas de la biblioteca sin portada.
+- Actualizado el flujo de GitHub Actions 'build-debug-apk.yml' para descargar y precalentar dependencias de Rust ('cargo fetch') antes de la compilación limpia del APK Debug.
+- Modularizado el crate de Rust ('app/src/main/rust/src') en módulos de responsabilidad única: 'models.rs' (estructuras de metadatos), 'id3.rs' (parser ID3v1/v2), 'vorbis.rs' (parser OGG/Vorbis/Opus), 'flac.rs' (parser FLAC nativo), 'ape.rs' (parser Monkey's Audio), 'mp4.rs' (parser AAC/M4A), 'writer.rs' (reescritura y reanálisis de tags) y 'jni_bridge.rs' (exportación C-ABI/JNI limpia).
+- Desacoplado 'AudioPlayerManager.kt' en submódulos especializados: 'PlaybackQueueManager.kt' (administración de cola, listas, modo aleatorio shuffle y repetición) y 'EqualizerController.kt' (control de filtros DSP de 10 bandas, persistencia SharedPreferences y sincronización con Oboe C++ y Media3).
+- Modularizada la pantalla de ajustes 'SettingsScreen.kt' en componentes específicos bajo 'ui.settings': 'SettingsComponents.kt', 'SettingsAudioEngineSection.kt', 'SettingsArchitectureSection.kt', 'SettingsDebugSection.kt', 'SettingsStorageSection.kt' y 'SettingsAboutSection.kt'.
+- Modularizada la pantalla principal 'MainMusicScreen.kt' en submódulos bajo 'ui.main': 'MainTopAppBar.kt', 'MainProgressBanners.kt', 'MainSearchBar.kt', 'EmptyLibraryView.kt' y 'TrackListView.kt'.
+- Integrada la suite completa de depuración en smartphone: biblioteca 'Timber' con árbol 'RitmoDebugTree.kt' direccionado al buffer en memoria, atrapador global 'RitmoCrashHandler.kt' (UncaughtExceptionHandler) con persistencia de stacktraces y visualización en 'DebugConsoleModal', y 'LeakCanary' ('debugImplementation') para detección y notificación automática de fugas de memoria en APK Debug.
+- Creado 'RitmoApplication.kt' para la inicialización ordenada de la infraestructura de debug y registrado en 'AndroidManifest.xml'.

@@ -1,97 +1,80 @@
 # Roadmap — Ritmo Music Player
 
-Este documento define la hoja de ruta estratégica para el desarrollo de **Ritmo**, organizando las metas en fases claras según el ciclo de desarrollo técnico.
+Este documento define la hoja de ruta estratégica para el desarrollo de **Ritmo**, organizando las metas alcanzadas y futuras en fases claras según el ciclo de desarrollo técnico.
 
 ---
 
-## 📍 Estado Actual: Fase 1 — Cimientos Sólidos & Arquitectura Híbrida (Completada)
+## 📍 Estado Actual: Fase 1 — Cimientos Sólidos, Módulos Nativos C++/Rust y Suite de Debug (Completada)
 
-- [x] **Interfaz Reactiva Material Design 3 con Animaciones Fluidas:**
-  - Tema oscuro de alta fidelidad con acentos verdes y contraste óptimo.
-  - Barra superior con contador dinámico de canciones y botón de importación directa.
-  - Mini reproductor persistente con carátula, animaciones suaves de reproducción/pausa y barra de progreso.
-  - Reproductor completo con transición vertical ergonómica, escalado elástico (*spring*) en carátula y saltos temporales.
-  - Barras animadas de visualización de audio en tiempo real en la pista que está sonando (`TrackListItem`).
-- [x] **Privacidad e Importación Local:**
-  - Selector de archivos mediante `ActivityResultContracts.OpenMultipleDocuments()`.
-  - Copia y almacenamiento local aislado en el almacenamiento privado de la app.
-  - Extracción y almacenamiento en caché de miniaturas y carátulas integradas.
-  - Persistencia de metadatos (título, artista, álbum, duración, ruta) mediante **Room Database**.
-- [x] **Doble Motor de Audio Seleccionable y Ajustes Generales:**
-  - Selector en el primer inicio con persistencia en SharedPreferences (`KEY_ENGINE_PROMPTED`).
-  - Motor estándar con ExoPlayer / Media3.
-  - Motor nativo C++ con Google Oboe (AAudio/OpenSL ES) para baja latencia.
-  - Pantalla independiente de Configuración General (`SettingsScreen`) con conmutador en caliente y diagnóstico nativo.
-- [x] **Reproducción en Segundo Plano:**
-  - Integración con `RitmoMediaSessionService` (`androidx.media3.session.MediaSessionService`).
-  - Controles de reproducción, metadatos y carátula sincronizados en notificaciones del sistema y pantalla de bloqueo.
-- [x] **Ecualizador de 10 Bandas en C++ (Doble Motor: Oboe y Media3):**
-  - Implementación con filtros Biquad IIR Transposed Direct Form II por muestra en tiempo real.
-  - 10 bandas de frecuencia (31 Hz a 16 kHz) con ganancia de -12 dB a +12 dB.
-  - Modal táctil interactivo en Compose (`EqualizerModal`) con preajustes de fábrica (Plano, Graves, Agudos, Vocal, Rock, Pop, Clásica).
-  - Soporte unificado para **Oboe C++** y **ExoPlayer / Media3** (mediante `Media3EqualizerAudioProcessor`), manteniendo ecualización idéntica y sincronizada en ambos motores.
-- [x] **Almacenamiento Modular Desacoplado y Carátulas WebP sin Pérdida:**
-  - Estructuración de directorios dedicados en `Android/data/<package>/files/`: `music/`, `covers/` y `artists/`.
-  - Conexión e interoperabilidad mediante archivos `.json` modulares independientes por cada pista.
-  - Procesamiento asíncrono en hilo secundario (`Dispatchers.IO`) con compresión WebP Lossless a máxima calidad sin congelar la UI.
-  - Asignación y cambio de carátula para cualquier canción (tenga o no previa) desde el reproductor completo y la lista.
+- [x] **Núcleo de Metadatos Audiófilo en Rust (`ritmo_rust`):**
+  - [x] Extracción e indexación profunda de metadatos (ID3v1, ID3v2, FLAC/Vorbis, Opus, APE) directamente en Rust sin intermediación de Kotlin.
+  - [x] Extracción de arte de portada embebido en bytes crudos desde el archivo fuente.
+  - [x] Edición y reescritura nativa de etiquetas (título y artista) delegada 100% a Rust.
+  - [x] Re-análisis nativo automático de tags tras la edición para detección y sincronización de álbum.
+  - [x] Puente JNI/C-ABI en `RustAudioEngine.kt` y `native_bridge.cpp`.
+  - [x] Diálogo táctil de 48dp `EditTrackMetadataDialog` en Compose con confirmación nativa.
+- [x] **Herramientas de Debug Avanzadas & Telemetría Cruda (Desarrollo en Móvil):**
+  - [x] Sistema de registro en memoria `DebugLogManager` con búfer circular de eventos clasificados por severidad.
+  - [x] Captura de códigos de error numéricos crudos de C++ Oboe (`nativeGetLastErrorCode`, `nativeGetLastErrorString`) y Media3 (`PlaybackException.errorCode`).
+  - [x] Atrapador global de excepciones no controladas `RitmoCrashHandler` (`Thread.UncaughtExceptionHandler`) con captura de StackTrace y persistencia en `SharedPreferences`.
+  - [x] Integración de logging profesional con `Timber` y `RitmoDebugTree` canalizado a `DebugLogManager`.
+  - [x] Detección y notificación automática de fugas de memoria con `LeakCanary` para APK Debug (`debugImplementation`).
+  - [x] Consola de diagnóstico táctil `DebugConsoleModal` con telemetría en tiempo real, visor de crashes y botón de "Copiar Reporte Completo".
+  - [x] Copia individual de cada evento de log al portapapeles mediante botón táctil de 48dp o tap directo.
+  - [x] Diálogo de alerta emergente `RawErrorDialog` para fallos críticos de reproducción o procesamiento con código exacto.
+  - [x] Accesos directos a la consola en la barra superior y en la pantalla de Ajustes.
+- [x] **Modularización Integral de la Arquitectura:**
+  - [x] Crate de Rust (`ritmo_rust`) descompuesto en módulos limpios: `models.rs`, `id3.rs`, `vorbis.rs`, `flac.rs`, `ape.rs`, `mp4.rs`, `writer.rs` y `jni_bridge.rs`.
+  - [x] Desacoplamiento de `AudioPlayerManager` delegando en `PlaybackQueueManager` (colas, shuffle, repeat) y `EqualizerController` (DSP 10 bandas y persistencia).
+  - [x] Modularización de `SettingsScreen` en submódulos bajo `ui.settings` (`SettingsComponents`, `SettingsAudioEngineSection`, `SettingsArchitectureSection`, `SettingsDebugSection`, `SettingsStorageSection`, `SettingsAboutSection`).
+  - [x] Modularización de `MainMusicScreen` en submódulos bajo `ui.main` (`MainTopAppBar`, `MainProgressBanners`, `MainSearchBar`, `EmptyLibraryView`, `TrackListView`).
+  - [x] Creación de `RitmoApplication` para orquestar la inicialización de librerías de depuración.
+- [x] **Doble Motor de Audio y Ecualizador de 10 Bandas en C++:**
+  - [x] Motor nativo C++ con Google Oboe (AAudio/OpenSL ES) para baja latencia.
+  - [x] Motor estándar con ExoPlayer / Media3 para compatibilidad y streaming local.
+  - [x] Ecualizador gráfico y paramétrico de 10 bandas (31 Hz a 16 kHz) con filtros Biquad IIR en C++.
+  - [x] Soporte unificado en Oboe y Media3 (mediante `Media3EqualizerAudioProcessor`), garantizando idéntica respuesta acústica.
+  - [x] Modal interactivo `EqualizerModal` en Compose con preajustes de fábrica.
+- [x] **Reproducción en Segundo Plano y Ergonomía:**
+  - [x] Integración con `RitmoMediaSessionService` para control en notificaciones y pantalla de bloqueo.
+  - [x] Controles táctiles de 48dp optimizados para smartphone.
+  - [x] Animaciones fluidas: curvas `FastOutSlowInEasing`, escalado elástico `spring` en carátula y barras de ecualización animadas en vivo.
+- [x] **Almacenamiento Modular y Carátulas WebP Sin Pérdida:**
+  - [x] Subdirectorios privados dedicados: `music/`, `covers/` y `artists/` con archivos `.json` modulares por pista.
+  - [x] Compresión WebP Lossless en segundo plano sin congelar la UI.
+  - [x] Generación procedural automática de carátulas para pistas sin arte embebido (`ArtworkProcessor.generateProceduralArtworkLosslessWebP`).
+  - [x] Selector visual Photo Picker sin permisos invasivos.
+- [x] **Flujo de CI/CD en GitHub Actions:**
+  - [x] Descarga y precalentamiento de dependencias de Rust (`cargo fetch`).
+  - [x] Compilación limpia y firma automatizada del APK Debug.
 
 ---
 
-## 🎧 Fase 2 — Procesamiento DSP Avanzado y Funciones por Motor
+## 🎧 Fase 2 — Procesamiento DSP Avanzado y Funciones por Motor (En Planificación)
 
 - [ ] **Funciones Exclusivas del Motor Nativo (Oboe C++):**
-  - **Audio 8D / Audio Espacial 360° Gratuito:**
+  - **Audio Espacial 360° / Efecto 8D Gratuito:**
     - Procesamiento matemático en tiempo real a nivel de muestra PCM (*sample-by-sample*).
     - Paneo circular continuo L/R con velocidad y radio de giro ajustables.
-    - Simulación de retardo interaural (*Interaural Time Delay - ITD*) y atenuación de cabeza (*head-shadowing filter*).
+    - Simulación de retardo interaural (*ITD*) y atenuación de sombra craneal (*head-shadowing*).
     - Micro-reverberación de sala para sensación tridimensional real sin costo ni anuncios.
-  - **Control de Tono y Velocidad sin Distorsión (*Pitch & Speed Shift*):**
-    - Modulación precisa de semitonos musicales y afinación alternativa (ej: 432 Hz).
   - **Modo Direct-to-DAC / Bit-Perfect:**
-    - Acceso directo de ultra baja latencia para audiófilos utilizando DACs USB y auriculares de monitoreo.
+    - Acceso directo de ultra baja latencia para audiófilos con DACs USB y auriculares de monitoreo.
+  - **Control de Tono y Afinación Alternativa (432 Hz):**
+    - Modulación precisa de semitonos musicales sin alterar la velocidad.
 
 - [ ] **Funciones Exclusivas del Motor Estándar (ExoPlayer / Media3):**
   - **Crossfade Inteligente:**
-    - Transición fluida con fundido cruzado regulable (1 a 10 segundos) entre canciones.
+    - Transición fluida con fundido cruzado regulable (1 a 10 segundos) entre pistas consecutivas.
   - **Gapless Playback Universal:**
-    - Reproducción continua sin micro-pausas entre pistas de álbumes en vivo y sinfonías.
-  - **Eficiencia Energética Máxima:**
-    - Aprovechamiento del decodificador multimedia del chipset del dispositivo para mínimo consumo de batería en reproducción prolongada con pantalla apagada.
+    - Reproducción continua sin micro-pausas entre pistas de conciertos en vivo o álbumes conceptuales.
+  - **Eficiencia Energética Optimizada:**
+    - Máximo aprovechamiento de decodificadores multimedia del chipset para bajo consumo de batería.
 
 ---
 
-## 🦀 Fase 3 — Potenciación del Núcleo Rust
+## 📊 Fase 3 — Listas de Reproducción Inteligentes y Exportación
 
-- [ ] **Motor de Metadatos Seguro en Rust:**
-  - Integración de crates como `symphonia` o `lofty` para parseo de etiquetas ID3v1, ID3v2, Vorbis Comments y cabeceras FLAC.
-  - Garantía total contra vulnerabilidades de desbordamiento de búfer al analizar archivos de audio provenientes de fuentes externas.
-- [ ] **Búferes Circulares Sin Bloqueo (*Lock-Free Ring Buffers*):**
-  - Cola de comunicación entre hilos de lectura de disco y de reproducción nativa en Rust, garantizando cero micro-tirones causados por la recolección de basura o bloqueos de E/S.
-- [ ] **Decodificador de Audio Hi-Res en Rust:**
-  - Decodificación directa de formatos de alta resolución (FLAC a 24 bits / 96 kHz o 192 kHz, OGG Vorbis y Opus).
-
----
-
-## 🎵 Fase 4 — Gestión Avanzada de Biblioteca
-
-- [ ] **Listas de Reproducción Personalizadas (*Playlists*):**
-  - Creación, renombrado, reordenación por arrastre (*drag and drop*) y eliminación de listas de reproducción locales.
-  - Lista automática de "Favoritos" (marcar canciones con corazón).
-  - Lista de "Reproducidas recientemente" e "Historial de escucha".
-- [ ] **Explorador por Carpetas y Artistas:**
-  - Vistas agrupadas por Álbum, Artista y Carpetas del almacenamiento importado.
-- [ ] **Edición de Etiquetas de Audio:**
-  - Editor rápido de metadatos (cambiar título, artista o álbum de un archivo directamente desde la app).
-
----
-
-## 📦 Fase 5 — Distribución y Publicación
-
-- [ ] **Optimización para Tiendas Alternativas:**
-  - Empaquetado optimizado para **Uptodown**, F-Droid y descarga directa de APK.
-  - Soporte para arquitecturas ARM64 (`arm64-v8a`) y ARMv7 (`armeabi-v7a`).
-- [ ] **Sistema de Actualizaciones In-App:**
-  - Comprobador ligero de versiones disponibles en repositorios externos sin depender de Google Play Services.
-- [ ] **Exportación y Respaldo:**
-  - Exportar/importar copia de seguridad de listas de reproducción y favoritos en formato JSON.
+- [ ] Listas de reproducción locales basadas en carpetas y etiquetas de Rust.
+- [ ] Exportador de biblioteca y copia de seguridad de archivos JSON modulares.
+- [ ] Visualizador de espectro FFT en tiempo real conectado al callback nativo de audio.

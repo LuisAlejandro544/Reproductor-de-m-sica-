@@ -1,61 +1,95 @@
 # Contexto de IA para el Proyecto — Ritmo
 
-Este archivo proporciona todo el contexto técnico, restricciones de diseño, perfil del usuario y reglas del ciclo de desarrollo para que cualquier asistente de Inteligencia Artificial entienda de inmediato el proyecto y actúe con máxima precisión.
+Este archivo proporciona el contexto técnico completo, restricciones de diseño, perfil del desarrollador y directrices del ciclo de construcción para que cualquier asistente de Inteligencia Artificial comprenda la arquitectura de **Ritmo** y actúe con máxima precisión.
 
 ---
 
 ## 🧭 Visión del Proyecto
 - **Nombre:** Ritmo
-- **Naturaleza:** Reproductor de audio local para Android con enfoque estricto en privacidad, alto rendimiento y fidelidad sonora.
-- **Filosofía:** El usuario tiene soberanía total sobre sus archivos. La app **no** escanea de fondo ni solicita permisos invasivos; solo indexa y almacena localmente los archivos que el usuario importa selectivamente mediante el selector seguro de Android.
-- **Doble Motor:** Soporta conmutación en caliente entre el motor estándar de Android (**ExoPlayer / Media3**) y un motor nativo de ultra baja latencia (**Oboe C++ / AAudio**), con arquitectura preparada para **Rust**.
-- **Ecualizador de 10 Bandas en C++ (Doble Motor):** Cuenta con un ecualizador de 10 bandas con filtros Biquad IIR a nivel de muestra PCM en C++. Está disponible de manera unificada tanto en el motor Oboe (procesamiento directo en callback de audio) como en Media3/ExoPlayer (mediante `Media3EqualizerAudioProcessor`), garantizando exactamente la misma respuesta acústica y preajustes sonoros independientemente del motor seleccionado.
-- **Reproducción en Segundo Plano:** Implementada con `RitmoMediaSessionService` para permitir control continuo desde la barra de notificaciones, pantalla de bloqueo y accesorios Bluetooth.
-- **Animaciones Fluidas:** Transiciones y animaciones cuidadas con Jetpack Compose (`AnimatedContent`, curvas `FastOutSlowInEasing`, escalado elástico `spring` y barras visualizadoras animadas en tiempo real).
+- **Naturaleza:** Reproductor de música local audiófilo para Android con enfoque estricto en privacidad, alto rendimiento, procesamiento nativo y fidelidad acústica.
+- **Filosofía de Privacidad:** El usuario tiene soberanía total sobre sus pistas. La app no realiza escaneos invasivos en segundo plano; únicamente indexa los archivos seleccionados explícitamente mediante el selector seguro del sistema.
+- **Arquitectura Híbrida Tripartita (Kotlin + C++ + Rust):**
+  - **Kotlin & Jetpack Compose:** Capa de presentación visual táctil reactiva, Material Design 3 y orquestación MVVM.
+  - **C++20 & Google Oboe / AAudio:** Motor de audio nativo de ultra baja latencia con procesamiento DSP en tiempo real (filtros Biquad IIR para ecualización de 10 bandas compartida con Media3).
+  - **Rust 2021 (`ritmo_rust`):** Núcleo audiófilo de extracción, indexación y reescritura de metadatos (ID3v1, ID3v2, FLAC/Vorbis, Opus, APE) con análisis nativo automático de tags y álbum.
+- **Herramientas de Depuración Avanzadas con Códigos Crudos:** Suite integrada en la UI (`DebugLogManager`, `DebugConsoleModal`, `RawErrorDialog`) con captura de códigos numéricos de C++ Oboe, Media3 y Rust para depuración total en smartphone sin necesidad de PC ni ADB.
+- **Suite de Debug para Smartphone:**
+  - **Timber & `RitmoDebugTree`:** Sistema de logging robusto conectado directamente a `DebugLogManager`.
+  - **Atrapador Global de Excepciones No Controladas (`RitmoCrashHandler`):** Captura stacktraces de cualquier fallo imprevisto del proceso, los persiste en `SharedPreferences` y los expone en la `DebugConsoleModal`.
+  - **LeakCanary:** Vigilancia automática de fugas de memoria en APK Debug sin impacto en builds de producción.
+- **Desarrollo y Diseño Modular:**
+  - `AudioPlayerManager` dividido en `PlaybackQueueManager` y `EqualizerController`.
+  - Vistas UI (`MainMusicScreen`, `SettingsScreen`) modularizadas en submódulos limpios bajo `ui.main` y `ui.settings`.
+  - Crate Rust `ritmo_rust` dividido en submódulos especializados (`models`, `id3`, `vorbis`, `flac`, `ape`, `mp4`, `writer`, `jni_bridge`).
+- **Reproducción en Segundo Plano:** Implementada con `RitmoMediaSessionService` para control continuo en notificaciones, pantalla de bloqueo y accesorios Bluetooth.
 
 ---
 
 ## 👤 Perfil del Usuario y Restricciones Operativas
 
-1. **Dispositivo del Usuario:**
-   - El usuario **no tiene PC**, únicamente utiliza su smartphone para programar, gestionar e interactuar con la app y el entorno.
-   - Toda la interfaz, navegación y controles deben ser ergonómicos, cómodos y 100% accesibles para una sola mano en pantallas táctiles móviles (tamaño táctil mínimo de 48dp).
+1. **Desarrollo Exclusivo en Smartphone (Sin PC ni ADB):**
+   - El desarrollador interactúa, programa y prueba la app directamente desde un teléfono móvil.
+   - **Diagnóstico Crudo Imprescindible:** Todos los errores nativos o del sistema deben registrarse con códigos de error numéricos exactos y ponerse a disposición en la interfaz mediante la consola de depuración y la acción de "Copiar Reporte".
+   - Todo control táctil debe contar con al menos 48dp de área interactiva y admitir uso fluido con una sola mano.
 
-2. **Canal de Distribución:**
-   - La aplicación no se subirá a Google Play Store; se distribuirá directamente como archivo APK en tiendas de terceros como **Uptodown** o descarga directa.
-   - No depender de servicios privativos de Google Play (Play Licensing, In-App Billing, etc.). La app debe ser 100% autónoma y offline.
+2. **Canal de Distribución Independiente:**
+   - Publicación orientada a **Uptodown** o descarga directa de APK.
+   - No utilizar servicios privativos de Google Play; la app debe operar 100% desconectada y autónoma.
 
-3. **Política de Peso vs. Dependencias:**
-   - Al usuario **no le preocupa el tamaño final del archivo APK**, siempre y cuando las dependencias sean 100% funcionales y aporten valor real.
-   - Evitar soluciones "inventadas desde cero sin dependencias" cuando existan librerías estándar y probadas en la industria (usar dependencias robustas y consolidadas).
+3. **Política de Dependencias de Primera Línea:**
+   - La funcionalidad y robustez prevalecen sobre el peso del APK.
+   - Se emplean librerías estándar consolidadas (Oboe, Media3, Room, Coil, crates de Rust `id3`, `metaflac`, `lofty`).
 
-4. **Reglas sobre Lenguajes Compilados (C++, Rust, Kotlin):**
-   - Si se integra C++, Rust o módulos nativos, **deben estar incluidos y configurados obligatoriamente en el pipeline de Gradle (`build.gradle.kts`, CMakeLists.txt)**. No deben saltarse ni omitirse.
-   - No usar funciones de reemplazo provisional (*fallback*) de Kotlin si se solicitó o diseñó la funcionalidad con un framework nativo específico.
+4. **Integración Obligatoria de C++ y Rust:**
+   - Toda lógica nativa en C++ y Rust debe compilarse y enlazarse en `build.gradle.kts` y `CMakeLists.txt`.
+   - Está prohibido colocar reemplazos provisionales en Kotlin para tareas asignadas a los motores nativos.
+   - Los workflows de CI/CD (GitHub Actions) deben incluir la descarga de dependencias con `cargo fetch`.
 
 5. **Protección de Propiedad Intelectual:**
-   - Evitar en todo momento nombrar archivos o identificadores con marcas registradas protegidas por derechos de autor que puedan poner al usuario en riesgo.
+   - No utilizar marcas de terceros en identificadores, paquetes o recursos.
 
-6. **Información y Mensajes de Commit:**
-   - La información de `commit_message.txt` siempre debe redactarse en español y solo actualizarse cuando el usuario lo pida expresamente.
+6. **Idioma y Control de Commit:**
+   - Todos los mensajes de commit y documentación deben mantenerse en español. `commit_message.txt` solo se modifica bajo solicitud explícita del usuario.
 
 ---
 
-## 🔄 Mapa del Ciclo de Desarrollo
+## 🦀 Módulo Nativo Rust (`ritmo_rust`)
+- **Ubicación:** `app/src/main/rust/`
+- **Capacidades:**
+  - `extract_audio_metadata`: Parser audiófilo multi-formato que retorna JSON estructurado con título, artista, álbum, duración, bitrate, sample rate y canales.
+  - `extract_audio_artwork`: Extracción de bytes crudos de arte de portada embebido.
+  - `update_audio_metadata`: Modificación física y reescritura de etiquetas de título y artista en el archivo de audio, seguida de re-análisis nativo de álbum.
+  - `rust_ping` y `rust_version`: Métodos de diagnóstico para comprobar la integridad del enlace nativo.
 
-Cada interacción del asistente con el código debe encajar en una de estas 7 fases:
+---
 
-1. **01 El Arquitecto (Planificación y Diseño):**
-   - Evalúa el stack técnico, modelo de datos y decisiones de diseño antes de escribir código nuevo.
-2. **02 El Constructor (Generación de Código):**
-   - Código limpio, modular, tipado, con manejo exhaustivo de errores y listo para producción.
-3. **03 El Detective (Debugging):**
-   - Diagnóstico metódico de errores con hipótesis, análisis paso a paso y causa raíz.
-4. **04 El Crítico (Code Review):**
-   - Revisión rigurosa de seguridad, rendimiento, patrones y mantenibilidad.
-5. **05 El Optimizador (Refactoring):**
-   - Mejora de rendimiento, legibilidad y reducción de consumo de CPU/batería sin alterar el comportamiento observable.
-6. **06 El Escudo (Testing):**
-   - Pruebas unitarias, escenarios límite (*edge cases*) y tests locales con Robolectric.
-7. **07 El Narrador (Documentación):**
-   - Mantenimiento de documentación técnica clara, precisa y directamente accionable.
+## 🛠️ Telemetría y Consola de Diagnóstico
+- **`DebugLogManager`:** Búfer circular de telemetría en memoria (hilo seguro con Mutex) accesible globalmente.
+- **Códigos de Error Nativos Oboe:**
+  - `0`: Éxito / Sin errores.
+  - `-998`: Puntero o recurso de reproducción no inicializado.
+  - `-999`: Error fatal o no categorizado de AAudio/OpenSL ES.
+  - Códigos numéricos estándar de Oboe (ej. `-899` Dispositivo desconectado, `-898` Servidor de audio muerto).
+- **Códigos de Error Media3:** Captura de `PlaybackException.errorCode` y nombre semántico.
+- **Códigos de Error Rust:** Prefijados con tags técnicos como `[RUST_NATIVE_ERR_TAG_WRITE]` y descriptores de I/O.
+- **Copia Individual de Logs:** `DebugConsoleModal` permite copiar al portapapeles cualquier evento individual mediante su botón interactivo de 48dp o mediante tap directo sobre el elemento.
+
+---
+
+## 🎨 Generación Procedural Automática de Carátulas
+- **Objetivo:** Garantizar que ninguna pista carezca de arte visual representativo.
+- **Algoritmo (`ArtworkProcessor`):**
+  - Si la extracción nativa en Rust o la búsqueda embebida no encuentran carátula, se invoca `generateProceduralArtworkLosslessWebP`.
+  - Genera una carátula determinista de 512x512 píxeles a partir del hash del título y artista, empleando paletas audiófilas armónicas, anillos acústicos concéntricos, espectro estilizado y monograma tipográfico con sombra.
+  - Se codifica en formato WebP Lossless al 100% de fidelidad y se persiste en `covers/`, registrándose en Room y en el archivo JSON modular.
+
+---
+
+## 🔄 Mapa de las 7 Fases del Ciclo de Construcción
+1. **01 El Arquitecto:** Planificación y diseño de contratos JNI, entidades y modelos de datos.
+2. **02 El Constructor:** Implementación técnica modular, tipada, con validación de inputs y manejo de errores.
+3. **03 El Detective:** Debugging metódico con códigos de error crudos y análisis de causa raíz.
+4. **04 El Crítico:** Code review de seguridad, concurrencia (mutexes) y rendimiento en tiempo real.
+5. **05 El Optimizador:** Refactorización, reducción de copias de memoria y optimización de buffers PCM.
+6. **06 El Escudo:** Pruebas unitarias y validación con suites locales Robolectric.
+7. **07 El Narrador:** Documentación técnica precisa, clara y en español.

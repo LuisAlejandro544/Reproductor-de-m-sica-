@@ -26,6 +26,9 @@ interface TrackDao {
     @Query("UPDATE tracks SET artworkPath = :artworkPath WHERE id = :id")
     suspend fun updateArtworkPath(id: Long, artworkPath: String?)
 
+    @Query("UPDATE tracks SET title = :title, artist = :artist, album = :album WHERE id = :id")
+    suspend fun updateTrackMetadata(id: Long, title: String, artist: String, album: String)
+
     @Query("DELETE FROM tracks")
     suspend fun deleteAll()
 }

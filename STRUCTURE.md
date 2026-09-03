@@ -1,45 +1,47 @@
 # Arquitectura y Estructura Técnica — Ritmo
 
-Este documento detalla la arquitectura de software, la organización de directorios, el flujo de datos y el diseño del puente nativo (Kotlin / C++ / Rust) de **Ritmo**.
+Este documento detalla la arquitectura de software, la organización de directorios, el flujo de datos, los puentes nativos (Kotlin / C++ / Rust) y la infraestructura de depuración de **Ritmo**.
 
 ---
 
 ## 🏛️ Diagrama de Capas del Sistema
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                   Capa de Presentación                      │
-│        Jetpack Compose (Material Design 3 / Dark Theme)     │
-│   MainMusicScreen ──► MiniPlayer ──► FullPlayerView         │
-│                           │                  │              │
-│                           └────────────► EqualizerModal     │
-│                                       (Oboe C++ y Media3)   │
-└──────────────────────────────┬──────────────────────────────┘
-                               │ StateFlow / Events
-┌──────────────────────────────▼──────────────────────────────┐
-│                    Capa de Lógica (MVVM)                    │
-│                    MusicPlayerViewModel                     │
-│         Gestiona estado, búsquedas, selección de motor,     │
-│             ecualizador nativo y preajustes de sonido       │
-└──────────────┬──────────────────────────────┬───────────────┘
-               │                              │
-┌──────────────▼─────────────┐ ┌──────────────▼───────────────┐
-│     Capa de Datos Local    │ │     Capa de Reproducción     │
-│       (Room Database)      │ │     (AudioPlayerManager)     │
-│  AppDatabase / TrackDao    │ │  Singleton unificado         │
-└────────────────────────────┘ └───────┬──────────────┬───────┘
-                                       │              │
-                    ┌──────────────────▼──┐   ┌───────▼───────────────┐
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            Capa de Presentación                             │
+│              Jetpack Compose (Material Design 3 / Dark Theme)               │
+│   MainMusicScreen ──► MiniPlayer ──► FullPlayerView ──► EqualizerModal      │
+│          │                   │                                 │            │
+│          ▼                   ▼                                 ▼            │
+│   DebugConsoleModal   RawErrorDialog               EditTrackMetadataDialog  │
+│  (Logs y Códigos)    (Alerta Cruda)                 (Edición Nativa Rust)   │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │ StateFlow / Eventos
+┌──────────────────────────────────────▼──────────────────────────────────────┐
+│                            Capa de Lógica (MVVM)                            │
+│                            MusicPlayerViewModel                             │
+│       Coordina reproducción, búsquedas, selección de motor, ecualizador,    │
+│           edición de tags con Rust y telemetría en DebugLogManager          │
+└──────────────┬───────────────────────┬──────────────────────────────┬───────┘
+               │                       │                              │
+┌──────────────▼─────────────┐ ┌───────▼──────────────┐ ┌─────────────▼───────┐
+│    Capa de Datos Local     │ │ Capa de Reproducción │ │   Capa de Debug     │
+│      (Room Database)       │ │ (AudioPlayerManager) │ │  (DebugLogManager)  │
+│ TrackEntity / TrackDao     │ │ Singleton unificado  │ │ Búfer en memoria    │
+│  y Archivos JSON modulares │ └───────┬──────────────┘ │ con códigos crudos  │
+└────────────────────────────┘         │                └─────────────────────┘
+                                       │
+                    ┌──────────────────▼──┐   ┌───────────────────────┐
                     │ Motor 1: Media3     │   │ Motor 2: Nativo C++   │
                     │ ExoPlayer (Java/KT) │   │ (Oboe / AAudio / JNI) │
                     └──────────┬──────────┘   └───────┬───────┬───────┘
                                │                      │       │
                                ▼                      ▼       ▼
-                    ┌─────────────────────┐       ┌──────┐ ┌──────────┐
-                    │ MediaSessionService │       │  EQ  │ │   Rust   │
-                    │ + AudioProcessor    │◄──────┤ 10-B │ │  Módulo  │
-                    │ (EQ C++ Biquad IIR) │       │(C++) │ │ (C-ABI)  │
-                    └─────────────────────┘       └──────┘ └──────────┘
+                    ┌─────────────────────┐       ┌──────┐ ┌──────────────────┐
+                    │ MediaSessionService │       │  EQ  │ │ Núcleo Rust      │
+                    │ + AudioProcessor    │◄──────┤ 10-B │ │ (ritmo_rust)     │
+                    │ (EQ C++ Biquad IIR) │       │(C++) │ │ Metadatos / Tags │
+                    └─────────────────────┘       └──────┘ └──────────────────┘
 ```
 
 ---
@@ -48,117 +50,140 @@ Este documento detalla la arquitectura de software, la organización de director
 
 ```
 /
+├── .github/
+│   └── workflows/
+│       ├── build-debug-apk.yml       # Compilación limpia y descarga de dependencias de Rust (cargo fetch)
+│       └── override-commit-message.yml
+├── AGENTS.md                         # Directrices obligatorias para agentes de IA
+├── AI_CONTEXT.md                     # Contexto técnico y operativo del proyecto
+├── README.md                         # Descripción general, características y guía de compilación
+├── ROADMAP.md                        # Hoja de ruta técnica organizada por fases
+├── STRUCTURE.md                      # Este documento de arquitectura
+├── commit_message.txt                # Mensaje de commit en español actualizado
 ├── app/
-│   ├── build.gradle.kts          # Configuración de compilación de Android, NDK y dependencias
-│   ├── CMakeLists.txt            # Script de CMake que compila C++ y enlaza Oboe
-│   ├── src/
-│   │   ├── main/
-│   │   │   ├── AndroidManifest.xml # Declaración de permisos y MediaSessionService
-│   │   │   ├── cpp/              # Código fuente C++ Nativo
-│   │   │   │   ├── CMakeLists.txt
-│   │   │   │   ├── equalizer.h       # Filtros Biquad IIR de 10 bandas (31Hz - 16kHz)
-│   │   │   │   ├── native_audio.h    # Cabecera del reproductor Oboe con DSP
-│   │   │   │   ├── native_audio.cpp  # Implementación de audio streams y filtrado en tiempo real
-│   │   │   │   └── native_bridge.cpp # Funciones JNI (reproducción, seek y controles de EQ)
-│   │   │   ├── rust/             # Código fuente Rust
-│   │   │   │   ├── Cargo.toml    # Manifiesto del crate de Rust (staticlib/cdylib)
-│   │   │   │   └── src/
-│   │   │   │       └── lib.rs    # Exportaciones C-ABI
-│   │   │   ├── java/com/example/
-│   │   │   │   ├── MainActivity.kt        # Punto de entrada de la actividad
-│   │   │   │   ├── data/                  # Capa de datos y persistencia
-│   │   │   │   │   ├── AppDatabase.kt     # Definición de Room Database
-│   │   │   │   │   ├── TrackDao.kt        # Consultas y persistencia SQL
-│   │   │   │   │   └── TrackEntity.kt     # Modelo de datos de una pista de audio
-│   │   │   │   ├── playback/              # Motores y gestión de reproducción
-│   │   │   │   │   ├── AudioEngineType.kt     # Enum: EXOPLAYER vs OBOE_CPP
-│   │   │   │   │   ├── AudioPlayerManager.kt  # Singleton unificado con gestión de EQ y servicio
-│   │   │   │   │   ├── Media3EqualizerAudioProcessor.kt # Procesador de audio PCM en Media3 con filtros C++
-│   │   │   │   │   ├── OboeAudioBridge.kt     # Enlace JNI de Kotlin con librerías nativas
-│   │   │   │   │   └── RitmoMediaSessionService.kt # Servicio de segundo plano y notificaciones
-│   │   │   │   ├── ui/                    # Capa de interfaz de usuario
-│   │   │   │   │   ├── MainMusicScreen.kt     # Pantalla principal con lista y buscador
-│   │   │   │   │   ├── SettingsScreen.kt      # Pantalla independiente de configuración general
-│   │   │   │   │   ├── MusicPlayerViewModel.kt# ViewModel central
-│   │   │   │   │   ├── components/
-│   │   │   │   │   │   ├── AlbumArtView.kt    # Renderizador de carátulas con fallback
-│   │   │   │   │   │   ├── EngineSelectDialog.kt # Diálogo de primer inicio (Oboe vs ExoPlayer)
-│   │   │   │   │   │   ├── EqualizerModal.kt  # Modal táctil de ecualizador de 10 bandas
-│   │   │   │   │   │   ├── FullPlayerView.kt  # Reproductor a pantalla completa
-│   │   │   │   │   │   ├── MiniPlayer.kt      # Barra de reproducción inferior
-│   │   │   │   │   │   └── TrackListItem.kt   # Elemento con barras animadas de visualización
-│   │   │   │   │   └── theme/
-│   │   │   │   │       ├── Color.kt           # Paleta de colores oscuros con verde
-│   │   │   │   │       └── Theme.kt           # Tema centralizado Material 3
-│   │   │   │   └── util/
-│   │   │   │       ├── AppStorageManager.kt   # Gestor de carpetas (music, covers, artists) y JSON modular
-│   │   │   │       ├── ArtworkProcessor.kt    # Compresión WebP sin pérdida en hilo secundario (IO)
-│   │   │   │       ├── AudioMetadataHelper.kt # Extractor de ID3 y carátulas
-│   │   │   │       └── FormatUtils.kt         # Formateador de tiempos (mm:ss)
-│   │   │   └── res/                       # Recursos XML, cadenas de texto e iconos
-│   ├── commit_message.txt        # Mensaje de commit descriptivo en español
-│   └── gradle/
-│       └── libs.versions.toml    # Catálogo centralizado de versiones y dependencias
+│   ├── build.gradle.kts              # Script Gradle con integración NDK, CMake y tarea compileRust
+│   ├── CMakeLists.txt                # Enlace de C++ Oboe y librust_audio.a
+│   └── src/
+│       └── main/
+│           ├── AndroidManifest.xml   # Permisos de almacenamiento y servicio MediaSession
+│           ├── cpp/                  # Código fuente Nativo en C++
+│           │   ├── CMakeLists.txt
+│           │   ├── equalizer.h       # Filtros Biquad IIR Transposed Direct Form II (10 bandas)
+│           │   ├── native_audio.h    # Cabecera de OboeAudioPlayer con mutex de errores
+│           │   ├── native_audio.cpp  # Implementación de audio Oboe y diagnóstico (error codes)
+│           │   └── native_bridge.cpp # JNI exports de C++ y puente hacia funciones C-ABI de Rust
+│           ├── rust/                 # Crate nativo de Rust (ritmo_rust)
+│           │   ├── Cargo.toml        # Dependencias: id3, metaflac, lofty, jni
+│           │   └── src/
+│           │       ├── lib.rs        # Entrada y reexportación modular de submódulos
+│           │       ├── models.rs     # Estructuras de metadatos audiófilos (AudioMetadata, ArtworkData)
+│           │       ├── id3.rs        # Parser nativo de etiquetas ID3v1 e ID3v2
+│           │       ├── vorbis.rs     # Parser de comentarios Vorbis para OGG y Opus
+│           │       ├── flac.rs       # Parser nativo de bloques FLAC
+│           │       ├── ape.rs        # Parser de etiquetas APE (Monkey's Audio)
+│           │       ├── mp4.rs        # Parser de contenedores AAC/M4A
+│           │       ├── writer.rs     # Motor de reescritura física de tags y reanálisis de álbum
+│           │       └── jni_bridge.rs # Exportación JNI limpia y puentes C-ABI
+│           ├── java/com/example/
+│           │   ├── MainActivity.kt
+│           │   ├── RitmoApplication.kt # Inicialización de Timber, LeakCanary y RitmoCrashHandler
+│           │   ├── data/
+│           │   │   ├── AppDatabase.kt
+│           │   │   ├── TrackDao.kt       # Consultas Room con updateTrackMetadata
+│           │   │   ├── TrackEntity.kt
+│           │   │   └── TrackRepository.kt
+│           │   ├── debug/
+│           │   │   ├── DebugLogManager.kt # Búfer circular de logs, severidades y códigos numéricos
+│           │   │   ├── RitmoCrashHandler.kt # Atrapador global de excepciones no controladas
+│           │   │   └── RitmoDebugTree.kt  # Integración de Timber hacia DebugLogManager
+│           │   ├── playback/
+│           │   │   ├── AudioEngineType.kt
+│           │   │   ├── AudioPlayerManager.kt # Orquestador modular de reproducción
+│           │   │   ├── PlaybackQueueManager.kt # Gestor de colas, shuffle y repeat
+│           │   │   ├── EqualizerController.kt # Controlador DSP 10 bandas y persistencia
+│           │   │   ├── EqualizerState.kt
+│           │   │   ├── Media3EqualizerAudioProcessor.kt # AudioProcessor Media3 con JNI C++
+│           │   │   ├── OboeAudioBridge.kt # Métodos nativos de reproducción y diagnóstico
+│           │   │   └── RitmoMediaSessionService.kt # Servicio de segundo plano
+│           │   ├── ui/
+│           │   │   ├── MainMusicScreen.kt # Orquestador principal de la interfaz
+│           │   │   ├── MusicPlayerViewModel.kt
+│           │   │   ├── SettingsScreen.kt # Pantalla de ajustes modularizada
+│           │   │   ├── main/             # Submódulos de la pantalla principal
+│           │   │   │   ├── MainTopAppBar.kt
+│           │   │   │   ├── MainProgressBanners.kt
+│           │   │   │   ├── MainSearchBar.kt
+│           │   │   │   ├── EmptyLibraryView.kt
+│           │   │   │   └── TrackListView.kt
+│           │   │   ├── settings/         # Submódulos de la pantalla de ajustes
+│           │   │   │   ├── SettingsComponents.kt
+│           │   │   │   ├── SettingsAudioEngineSection.kt
+│           │   │   │   ├── SettingsArchitectureSection.kt
+│           │   │   │   ├── SettingsDebugSection.kt
+│           │   │   │   ├── SettingsStorageSection.kt
+│           │   │   │   └── SettingsAboutSection.kt
+│           │   │   ├── components/
+│           │   │   │   ├── AlbumArtView.kt
+│           │   │   │   ├── DebugConsoleModal.kt # Consola táctil con logs crudos, copia individual (48dp) y visualizador de crashes
+│           │   │   │   ├── EditTrackMetadataDialog.kt # Diálogo de edición de tags con Rust
+│           │   │   │   ├── EngineSelectDialog.kt
+│           │   │   │   ├── EqualizerModal.kt
+│           │   │   │   ├── FullPlayerView.kt
+│           │   │   │   ├── MiniPlayer.kt
+│           │   │   │   ├── RawErrorDialog.kt # Alerta emergente ante errores numéricos crudos
+│           │   │   │   └── TrackListItem.kt
+│           │   │   └── theme/
+│           │   └── util/
+│           │       ├── AppStorageManager.kt # Gestión de carpetas music/, covers/, artists/
+│           │       ├── ArtworkProcessor.kt  # Compresión WebP Lossless y generación procedural de carátulas
+│           │       ├── FormatUtils.kt
+│           │       ├── MusicImporter.kt     # Importador con RustAudioEngine y fallback de arte procedural
+│           │       └── RustAudioEngine.kt   # Puente Kotlin hacia los métodos JNI de Rust
+│           └── res/
 ```
 
 ---
 
-## 📁 Arquitectura de Almacenamiento Modular y Metadatos JSON
+## 🌉 Especificación del Puente Nativo (JNI / C-ABI)
 
-El sistema organiza los archivos de forma modular y desacoplada dentro de la ruta privada de la aplicación:
-`Android/data/com.example/files/` (o fallback a `filesDir`):
+### 1. Métodos de Rust (`librust_audio.a` exportados vía `native_bridge.cpp`)
+- `Java_com_example_util_RustAudioEngine_nativeExtractMetadata(JNIEnv*, jclass, jstring filePath)`
+  - Retorna un string JSON con metadatos audiófilos (título, artista, álbum, duración, bitrate, sample rate, canales).
+- `Java_com_example_util_RustAudioEngine_nativeExtractArtwork(JNIEnv*, jclass, jstring filePath)`
+  - Retorna un `jbyteArray` con los bytes de la imagen de portada embebida en la pista.
+- `Java_com_example_util_RustAudioEngine_nativeUpdateMetadata(JNIEnv*, jclass, jstring filePath, jstring title, jstring artist)`
+  - Escribe físicamente en el archivo de audio los nuevos tags de título y artista y valida su consistencia.
+- `Java_com_example_util_RustAudioEngine_nativeRustPing(JNIEnv*, jclass)` y `nativeRustVersion(JNIEnv*, jclass)`
+  - Métodos para verificación y prueba de enlace del núcleo nativo.
 
-```
-Android/data/com.example/files/
-├── music/               # Archivos de música importados (.mp3, .flac, .wav, .m4a, .ogg)
-│   ├── track_1710001_audio.mp3
-│   └── track_1710002_audio.flac
-├── covers/              # Carátulas procesadas en formato WebP a máxima compresión sin pérdida
-│   ├── cover_1710001.webp
-│   └── cover_1710002.webp
-└── artists/             # Archivos JSON modulares e independientes por cada canción
-    ├── track_1710001_metadata.json
-    └── track_1710002_metadata.json
-```
-
-### 1. Archivos `.json` Modulares por Pista (`AppStorageManager.kt`)
-- Cada canción dispone de su propio archivo `.json` independiente en la carpeta `artists/`.
-- Conecta de manera desacoplada la canción de audio, la imagen de portada y los datos del artista/álbum:
-  ```json
-  {
-    "id": 1,
-    "title": "Song Title",
-    "artist": "Artist Name",
-    "album": "Album Name",
-    "durationMs": 215000,
-    "filePath": "/storage/.../music/track_1.mp3",
-    "artworkPath": "/storage/.../covers/cover_1.webp",
-    "mimeType": "audio/mpeg",
-    "dateAdded": 1710000000000
-  }
-  ```
-- Al importar o modificar pistas (como cambiar carátula), el archivo `.json` se escribe o actualiza atómicamente. Al borrar una pista, su archivo `.json` y su carátula asociada se limpian de manera segura.
-
-### 2. Procesamiento de Carátulas en WebP sin Pérdida (`ArtworkProcessor.kt`)
-- **Compresión sin Pérdida:** Emplea `Bitmap.CompressFormat.WEBP_LOSSLESS` al 100% de calidad, preservando la fidelidad cromática original y reduciendo drásticamente el espacio en disco frente a PNG/JPEG.
-- **Ejecución en Hilo Secundario:** Todo el proceso de decodificación, escalado suave (si excede 1024x1024) y compresión WebP se ejecuta estrictamente en un hilo de fondo (`withContext(Dispatchers.IO)`), manteniendo la UI a 60/120 fps fluidos.
-- **Acceso Directo:** Los usuarios pueden asignar o actualizar la carátula de cualquier pista (con o sin carátula previa) tanto desde el reproductor completo (`FullPlayerView`) con un botón táctil de 48dp, como desde el menú desplegable de cada canción (`TrackListItem`).
+### 2. Métodos de Diagnóstico y Telemetría C++ Oboe (`OboeAudioBridge.kt`)
+- `nativeGetLastErrorCode()`: Devuelve el código de error numérico crudo más reciente del motor nativo.
+- `nativeGetLastErrorString()`: Devuelve el mensaje descriptivo del fallo.
+- `nativeGetAudioDeviceInfo()`: Información del hardware de audio activo (`AAudio`/`OpenSL ES`).
+- `nativeGetStreamStatsJson()`: Estadísticas de frames leídos, xruns y estado del stream.
 
 ---
 
-## ⚙️ Funcionamiento del Puente Nativo y DSP
+## 🔄 Flujo de Trabajo con Códigos Crudos en Smartphone
 
-### 1. Ecualizador de 10 Bandas en C++ (`equalizer.h`)
-- **Filtros Biquad IIR:** Utiliza la forma directa II transpuesta (*Transposed Direct Form II*) para máxima estabilidad numérica en cálculos de punto flotante de 32 bits.
-- **Frecuencias Centrales:** 31.25 Hz, 62.5 Hz, 125 Hz, 250 Hz, 500 Hz, 1 kHz, 2 kHz, 4 kHz, 8 kHz y 16 kHz.
-- **Rango de Ganancia:** -12.0 dB a +12.0 dB con factor de calidad $Q = 1.414$ para transiciones musicales suaves sin solapamientos agresivos.
-- **Integración en Oboe:** En `AudioPlayerCallback::onAudioReady`, cada muestra de audio PCM pasa de forma instantánea por la cadena de filtros en C++ antes de escribirse en el búfer de hardware de Oboe.
-- **Integración en Media3:** A través de `Media3EqualizerAudioProcessor`, ExoPlayer transfiere el búfer PCM de 16 bits directamente a `nativeMedia3ProcessDirect` en C++, aplicando exactamente los mismos filtros Biquad antes del renderizado en `AudioTrack`.
-
-### 2. Disponibilidad Unificada del Ecualizador
-- El ecualizador comparte el mismo estado (`EqualizerState`), preajustes de sonido y ajustes de ganancia entre ambos motores.
-- En la interfaz de usuario (`FullPlayerView.kt`, `EqualizerModal.kt` y `MainMusicScreen.kt`), el ecualizador está disponible para el usuario sin importar si escucha música con **Oboe C++** o con **Media3 / ExoPlayer**, mostrando en el modal el motor activo y la tecnología de filtrado en ejecución.
-
-### 3. Servicio de Segundo Plano (`RitmoMediaSessionService`)
-- Extiende `MediaSessionService` de AndroidX Media3.
-- Vincula una `MediaSession` que interactúa con el sistema operativo para permitir pausa, reproducción y salto de pistas desde auriculares bluetooth, relojes inteligentes y la pantalla de bloqueo.
+```
+[Evento de Audio / I/O]
+        │
+        ├── Éxito ──► Reproducción / Parseo OK
+        │
+        └── Fallo
+              │
+              ├── Oboe C++   ──► Guarda código numérico (-998, -899, etc.) bajo std::mutex
+              ├── Media3     ──► Captura PlaybackException.errorCode
+              └── Rust       ──► Retorna código de error o excepción I/O nativa
+                    │
+                    ▼
+          [DebugLogManager.recordError]
+                    │
+                    ├── Registra en búfer circular en memoria (200 eventos)
+                    ├── Dispara RawErrorDialog si es crítico
+                    └── Disponible en DebugConsoleModal:
+                          - Inspección táctil en pantalla de smartphone
+                          - Copia individual por log (botón de 48dp o tap directo)
+                          - Botón de 48dp: "Copiar Reporte Completo"
+```

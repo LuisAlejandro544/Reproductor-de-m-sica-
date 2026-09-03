@@ -87,8 +87,97 @@ class MusicPlayerViewModel(
     private val _isUpdatingArtwork = MutableStateFlow(false)
     val isUpdatingArtwork: StateFlow<Boolean> = _isUpdatingArtwork.asStateFlow()
 
+    private val _editingTrack = MutableStateFlow<TrackEntity?>(null)
+    val editingTrack: StateFlow<TrackEntity?> = _editingTrack.asStateFlow()
+
+    private val _isDebugConsoleOpen = MutableStateFlow(false)
+    val isDebugConsoleOpen: StateFlow<Boolean> = _isDebugConsoleOpen.asStateFlow()
+
+    private val _rawErrorDialog = MutableStateFlow<String?>(null)
+    val rawErrorDialog: StateFlow<String?> = _rawErrorDialog.asStateFlow()
+
     private val _snackbarMessage = MutableStateFlow<String?>(null)
     val snackbarMessage: StateFlow<String?> = _snackbarMessage.asStateFlow()
+
+    init {
+        // Asegurar que toda pista en la biblioteca cuente con carátula (generación procedural si no tenía)
+        viewModelScope.launch(Dispatchers.IO) {
+            allTracksFlow.collect { tracks ->
+                for (track in tracks) {
+                    if (track.artworkPath.isNullOrBlank()) {
+                        try {
+                            val proceduralArt = ArtworkProcessor.generateProceduralArtworkLosslessWebP(
+                                context = getApplication(),
+                                title = track.title,
+                                artist = track.artist,
+                                trackId = track.id
+                            )
+                            val updatedTrack = track.copy(artworkPath = proceduralArt)
+                            trackRepository.updateArtwork(track.id, proceduralArt)
+                            AppStorageManager.saveTrackMetadataJson(getApplication(), updatedTrack)
+                            if (playerManager.currentTrack.value?.id == track.id) {
+                                playerManager.updateCurrentTrack(updatedTrack)
+                            }
+                        } catch (_: Exception) {
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fun openDebugConsole() {
+        _isDebugConsoleOpen.value = true
+    }
+
+    fun closeDebugConsole() {
+        _isDebugConsoleOpen.value = false
+    }
+
+    fun openTrackEditor(track: TrackEntity) {
+        _editingTrack.value = track
+    }
+
+    fun closeTrackEditor() {
+        _editingTrack.value = null
+    }
+
+    fun dismissRawErrorDialog() {
+        _rawErrorDialog.value = null
+    }
+
+    fun updateTrackWithRust(track: TrackEntity, newTitle: String, newArtist: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val result = com.example.util.RustAudioEngine.updateTrackMetadata(
+                track.filePath,
+                newTitle.trim(),
+                newArtist.trim()
+            )
+            if (result.isSuccess) {
+                // El analizador nativo de Rust re-analiza el archivo en busca de tags y álbum
+                val reanalyzed = com.example.util.RustAudioEngine.extractMetadata(track.filePath)
+                val finalTitle = reanalyzed?.title?.takeIf { it.isNotBlank() } ?: newTitle.trim()
+                val finalArtist = reanalyzed?.artist?.takeIf { it.isNotBlank() } ?: newArtist.trim()
+                val finalAlbum = reanalyzed?.album?.takeIf { it.isNotBlank() } ?: track.album
+
+                trackRepository.updateTrackMetadata(track.id, finalTitle, finalArtist, finalAlbum)
+                val updatedEntity = track.copy(title = finalTitle, artist = finalArtist, album = finalAlbum)
+                AppStorageManager.saveTrackMetadataJson(getApplication(), updatedEntity)
+
+                if (currentTrack.value?.id == track.id) {
+                    playerManager.updateCurrentTrack(updatedEntity)
+                }
+
+                _snackbarMessage.value = "Tags actualizados por Rust: '$finalTitle' - '$finalArtist' (Álbum: '$finalAlbum')"
+                _editingTrack.value = null
+            } else {
+                val err = result.exceptionOrNull()
+                val msg = "Fallo en Rust al actualizar: ${err?.message}"
+                _snackbarMessage.value = msg
+                _rawErrorDialog.value = "[RUST_NATIVE_ERR_TAG_WRITE] $msg"
+            }
+        }
+    }
 
     fun setSearchQuery(query: String) {
         _searchQuery.value = query

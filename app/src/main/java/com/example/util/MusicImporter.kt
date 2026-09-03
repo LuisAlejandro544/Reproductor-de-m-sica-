@@ -5,6 +5,8 @@ import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.provider.OpenableColumns
 import com.example.data.TrackEntity
+import com.example.debug.DebugLogLevel
+import com.example.debug.DebugLogManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -34,37 +36,54 @@ object MusicImporter {
                         continue
                     }
 
-                    var title: String? = null
-                    var artist: String? = null
-                    var album: String? = null
-                    var durationMs = 0L
+                    // Extracción OBLIGATORIA de metadatos mediante el motor nativo Rust
+                    val rustMeta = RustAudioEngine.extractMetadata(targetFile.absolutePath)
+                    var title: String? = rustMeta?.title
+                    var artist: String? = rustMeta?.artist
+                    var album: String? = rustMeta?.album
+                    var durationMs = rustMeta?.durationMs ?: 0L
                     var artworkPath: String? = null
 
-                    val retriever = MediaMetadataRetriever()
-                    try {
-                        retriever.setDataSource(targetFile.absolutePath)
-                        title = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
-                        artist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
-                        album = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM)
-                        val durStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
-                        durationMs = durStr?.toLongOrNull() ?: 0L
+                    // 1. Carátula procesada directamente desde el binario por Rust
+                    val rustArtworkBytes = RustAudioEngine.extractArtwork(targetFile.absolutePath)
+                    if (rustArtworkBytes != null && rustArtworkBytes.isNotEmpty()) {
+                        try {
+                            artworkPath = ArtworkProcessor.processByteArrayToLosslessWebP(
+                                context = context,
+                                bytes = rustArtworkBytes,
+                                trackId = System.currentTimeMillis()
+                            )
+                            DebugLogManager.log("MusicImporter", "Carátula audiófila extraída por Rust para: $displayName", DebugLogLevel.DEBUG)
+                        } catch (e: Exception) {
+                            DebugLogManager.logError("MusicImporter", "Error procesando carátula extraída por Rust", throwable = e)
+                        }
+                    }
 
-                        val embeddedArt = retriever.embeddedPicture
-                        if (embeddedArt != null && embeddedArt.isNotEmpty()) {
+                    // 2. Soporte complementario de duración o carátula si el archivo carece de tags binarios
+                    if (durationMs == 0L || artworkPath == null) {
+                        val retriever = MediaMetadataRetriever()
+                        try {
+                            retriever.setDataSource(targetFile.absolutePath)
+                            if (durationMs == 0L) {
+                                val durStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                                durationMs = durStr?.toLongOrNull() ?: 0L
+                            }
+                            if (artworkPath == null) {
+                                val embeddedArt = retriever.embeddedPicture
+                                if (embeddedArt != null && embeddedArt.isNotEmpty()) {
+                                    artworkPath = ArtworkProcessor.processByteArrayToLosslessWebP(
+                                        context = context,
+                                        bytes = embeddedArt,
+                                        trackId = System.currentTimeMillis()
+                                    )
+                                }
+                            }
+                        } catch (_: Exception) {
+                        } finally {
                             try {
-                                artworkPath = ArtworkProcessor.processByteArrayToLosslessWebP(
-                                    context = context,
-                                    bytes = embeddedArt,
-                                    trackId = System.currentTimeMillis()
-                                )
+                                retriever.release()
                             } catch (_: Exception) {
                             }
-                        }
-                    } catch (_: Exception) {
-                    } finally {
-                        try {
-                            retriever.release()
-                        } catch (_: Exception) {
                         }
                     }
 
@@ -75,6 +94,21 @@ object MusicImporter {
                     }
                     val cleanArtist = if (!artist.isNullOrBlank()) artist.trim() else "Artista desconocido"
                     val cleanAlbum = if (!album.isNullOrBlank()) album.trim() else "Álbum desconocido"
+
+                    // Generación procedural automática de portada si la pista no posee carátula embebida
+                    if (artworkPath == null) {
+                        try {
+                            artworkPath = ArtworkProcessor.generateProceduralArtworkLosslessWebP(
+                                context = context,
+                                title = cleanTitle,
+                                artist = cleanArtist,
+                                trackId = System.currentTimeMillis()
+                            )
+                            DebugLogManager.log("MusicImporter", "Portada procedural generada automáticamente para: $cleanTitle", DebugLogLevel.INFO)
+                        } catch (e: Exception) {
+                            DebugLogManager.logError("MusicImporter", "Fallo al generar portada procedural", throwable = e)
+                        }
+                    }
 
                     val track = TrackEntity(
                         title = cleanTitle,

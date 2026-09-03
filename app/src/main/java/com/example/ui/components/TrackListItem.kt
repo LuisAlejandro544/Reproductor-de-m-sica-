@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.DropdownMenu
@@ -64,7 +65,8 @@ fun TrackListItem(
     onClick: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
-    onEditArtwork: () -> Unit = {}
+    onEditArtwork: () -> Unit = {},
+    onEditMetadata: () -> Unit = {}
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
 
@@ -184,6 +186,20 @@ fun TrackListItem(
                     onClick = {
                         menuExpanded = false
                         onEditArtwork()
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("Editar con Rust (Tags)", color = TextPrimary) },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.tertiary
+                        )
+                    },
+                    onClick = {
+                        menuExpanded = false
+                        onEditMetadata()
                     }
                 )
                 DropdownMenuItem(

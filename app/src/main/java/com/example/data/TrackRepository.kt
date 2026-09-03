@@ -22,6 +22,10 @@ class TrackRepository(private val trackDao: TrackDao) {
         trackDao.updateArtworkPath(trackId, artworkPath)
     }
 
+    suspend fun updateTrackMetadata(id: Long, title: String, artist: String, album: String) {
+        trackDao.updateTrackMetadata(id, title, artist, album)
+    }
+
     suspend fun deleteTrack(track: TrackEntity) {
         trackDao.deleteTrackById(track.id)
         // Clean up audio file and artwork if they exist in private storage

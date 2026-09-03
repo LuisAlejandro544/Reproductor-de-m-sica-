@@ -58,6 +58,28 @@ object OboeAudioBridge {
         channelCount: Int
     )
 
-    // Puente al módulo Rust (preparado para futuras integraciones)
+    // Puente al módulo Rust
     external fun nativeGetRustVersion(): Int
+
+    // Diagnósticos y Códigos de Error Crudos (Depuración NDK)
+    external fun nativeGetLastErrorCode(): Int
+    external fun nativeGetLastErrorString(): String
+    external fun nativeGetAudioDeviceInfo(): String
+    external fun nativeGetStreamStatsJson(): String
+
+    fun getLastErrorCodeSafe(): Int = if (isLibraryLoaded) {
+        try { nativeGetLastErrorCode() } catch (_: Throwable) { -999 }
+    } else -998
+
+    fun getLastErrorStringSafe(): String = if (isLibraryLoaded) {
+        try { nativeGetLastErrorString() } catch (t: Throwable) { "Error JNI: ${t.message}" }
+    } else "Biblioteca nativa no cargada"
+
+    fun getAudioDeviceInfoSafe(): String = if (isLibraryLoaded) {
+        try { nativeGetAudioDeviceInfo() } catch (t: Throwable) { "Error JNI: ${t.message}" }
+    } else "N/A (Nativo no listo)"
+
+    fun getStreamStatsJsonSafe(): String = if (isLibraryLoaded) {
+        try { nativeGetStreamStatsJson() } catch (t: Throwable) { "{}" }
+    } else "{}"
 }

@@ -45,14 +45,20 @@ jobs:
           echo "=== Instalando NDK 26.1.10909125 y CMake 3.22.1 ==="
           sdkmanager "ndk;26.1.10909125" "cmake;3.22.1"
 
-      # 5. Configurar el compilador de Rust (cargo / rustc) para compilar el crate ritmo_rust
-      - name: Configurar compilador de Rust
+      # 5. Configurar el compilador de Rust (cargo / rustc) y descargar dependencias del crate nativo
+      - name: Configurar compilador de Rust y descargar dependencias
         run: |
           echo "=== Configurando Toolchain de Rust ==="
           rustup update stable
           rustup default stable
           rustc --version
           cargo --version
+          echo "=== Descargando dependencias de Rust (cargo fetch) ==="
+          if [ -d "app/src/main/rust" ]; then
+            cd app/src/main/rust
+            cargo fetch --verbose
+            cd ../../../..
+          fi
 
       # 6. Generación del almacén de claves (Keystore) y firma dentro del Action
       - name: Generar almacén de claves y firma de la app (debug.keystore)
