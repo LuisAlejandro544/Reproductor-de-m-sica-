@@ -4,89 +4,39 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.*
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.QueueMusic
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.PlaylistEntity
 import com.example.data.TrackEntity
-import com.example.ui.components.AddToPlaylistBottomSheet
-import com.example.ui.components.CreatePlaylistDialog
-import com.example.ui.components.DebugConsoleModal
-import com.example.ui.components.EditTrackMetadataDialog
-import com.example.ui.components.EngineSelectDialog
-import com.example.ui.components.EqualizerModal
-import com.example.ui.components.FpsOverlay
-import com.example.ui.components.FullPlayerView
-import com.example.ui.components.MiniPlayer
-import com.example.ui.components.RawErrorDialog
-import com.example.ui.components.RoomDatabaseInspectorModal
-import com.example.ui.components.SleepTimerModal
-import com.example.ui.components.SpatialAudio8DModal
-import com.example.ui.main.EmptyLibraryView
-import com.example.ui.main.MainProgressBanners
-import com.example.ui.main.MainSearchBar
-import com.example.ui.main.MainTopAppBar
-import com.example.ui.main.PlaylistDetailView
-import com.example.ui.main.PlaylistListView
-import com.example.ui.main.TrackListView
+import com.example.ui.components.*
+import com.example.ui.main.*
 import com.example.ui.theme.DarkBackground
-import com.example.ui.theme.DarkSurface
-import com.example.ui.theme.GreenAccent
-import com.example.ui.theme.GreenPrimary
-import com.example.ui.theme.TextPrimary
-import com.example.ui.theme.TextSecondary
 
 /**
  * Pantalla principal modular de Ritmo Music Player.
  *
- * Descompuesta en submódulos especializados:
- * - [MainTopAppBar]: Identidad, chip de motor, importación, debug y settings.
- * - [MainProgressBanners]: Banners reactivos de importación y WebP sin pérdida.
- * - [MainSearchBar]: Búsqueda y filtrado dinámico.
- * - [EmptyLibraryView]: Estado de biblioteca vacía.
- * - [TrackListView]: Lista perezosa de canciones.
- * - [MiniPlayer] & [FullPlayerView]: Reproductor compacto y pantalla completa.
- * - [EqualizerModal]: Ecualizador paramétrico DSP de 10 bandas C++.
- * - [SettingsScreen]: Ajustes integrados.
- * - Modales de diagnóstico crudo, edición de tags en Rust y selección inicial de motor.
+ * Arquitectura modular compuesta por componentes desacoplados:
+ * - [MainTopAppBar]: Identidad, selector de motor, importación de medios y acceso a ajustes.
+ * - [MainProgressBanners]: Banners no bloqueantes para importación y compresión Lossless WebP.
+ * - [MainSearchBar]: Filtrado en memoria de canciones.
+ * - [EmptyLibraryView] & [TrackListView]: Vistas de contenido de canciones.
+ * - [PlaylistListView] & [PlaylistDetailView]: Navegación y gestión de playlists.
+ * - [MiniPlayer] & [FullPlayerView]: Reproductor táctil compacto y a pantalla completa.
+ * - [MainBottomNavBar]: Barra táctil con touch targets de 48dp.
+ * - [EqualizerModal] & [SpatialAudio8DModal]: DSP en tiempo real C++ (10 bandas y audio 360°).
+ * - [SleepTimerModal]: Temporizador de apagado.
+ * - [SettingsScreen]: Vista de configuración integrada.
+ * - [MainModalsHost]: Hospedador de diálogos, modales de diagnóstico y herramientas sin PC.
  */
 @Composable
 fun MainMusicScreen(
@@ -136,29 +86,11 @@ fun MainMusicScreen(
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
     var playlistToEdit by remember { mutableStateOf<PlaylistEntity?>(null) }
     var trackForAddToPlaylist by remember { mutableStateOf<TrackEntity?>(null) }
-
     var targetTrackForArtwork by remember { mutableStateOf<TrackEntity?>(null) }
+
     val snackbarHostState = remember { SnackbarHostState() }
 
-    LaunchedEffect(snackbarMessage) {
-        snackbarMessage?.let { msg ->
-            snackbarHostState.showSnackbar(msg)
-            viewModel.clearSnackbarMessage()
-        }
-    }
-
-    // Selector de carátula con Photo Picker oficial (zero-permissions)
-    val photoPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia()
-    ) { uri ->
-        uri?.let { selectedUri ->
-            targetTrackForArtwork?.let { track ->
-                viewModel.updateTrackArtwork(track, selectedUri)
-            }
-        }
-    }
-
-    // Audio file picker launcher
+    // Launcher para seleccionar archivos de audio locales
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenMultipleDocuments()
     ) { uris ->
@@ -167,39 +99,50 @@ fun MainMusicScreen(
         }
     }
 
-    // Back handler for closing equalizer
-    BackHandler(enabled = isEqualizerOpen) {
-        viewModel.closeEqualizer()
+    // Launcher con Android Photo Picker nativo para carátulas WebP
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null && targetTrackForArtwork != null) {
+            viewModel.updateTrackArtwork(targetTrackForArtwork!!, uri)
+            targetTrackForArtwork = null
+        }
     }
 
-    // Back handler for collapsing full player
-    BackHandler(enabled = isPlayerExpanded && !isEqualizerOpen) {
-        viewModel.setPlayerExpanded(false)
+    // Presentar mensajes flotantes de la UI
+    LaunchedEffect(snackbarMessage) {
+        snackbarMessage?.let { msg ->
+            snackbarHostState.showSnackbar(msg)
+            viewModel.clearSnackbarMessage()
+        }
     }
 
-    // Back handler para cerrar detalle de playlist
-    BackHandler(enabled = selectedPlaylistTarget != null && !isPlayerExpanded && !isEqualizerOpen && !isSettingsOpen) {
-        viewModel.closePlaylistDetail()
-    }
-
-    // Back handler para volver a la pestaña de canciones si estamos en playlists
-    BackHandler(enabled = currentNavTab == MainNavigationTab.PLAYLISTS && selectedPlaylistTarget == null && !isPlayerExpanded && !isEqualizerOpen && !isSettingsOpen) {
-        viewModel.selectNavTab(MainNavigationTab.SONGS)
+    // Gestión predictiva del botón Atrás (BackHandler)
+    BackHandler(enabled = isPlayerExpanded || isSettingsOpen || selectedPlaylistTarget != null) {
+        when {
+            isPlayerExpanded -> viewModel.setPlayerExpanded(false)
+            isSettingsOpen -> viewModel.closeSettings()
+            selectedPlaylistTarget != null -> viewModel.closePlaylistDetail()
+        }
     }
 
     Scaffold(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier
+            .fillMaxSize()
+            .background(DarkBackground),
         containerColor = DarkBackground,
         snackbarHost = {
             SnackbarHost(
                 hostState = snackbarHostState,
-                modifier = Modifier.padding(bottom = 16.dp)
+                modifier = Modifier
+                    .navigationBarsPadding()
+                    .padding(bottom = if (currentTrack != null) 72.dp else 0.dp)
             )
         },
         bottomBar = {
             if (!isPlayerExpanded && !isSettingsOpen) {
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    // Mini player posicionado inmediatamente sobre la barra de navegación inferior
+                    // Mini player posicionado sobre la barra de navegación
                     if (currentTrack != null) {
                         MiniPlayer(
                             track = currentTrack!!,
@@ -213,66 +156,18 @@ fun MainMusicScreen(
                         )
                     }
 
-                    // Barra de navegación inferior
-                    NavigationBar(
-                        containerColor = DarkSurface,
-                        tonalElevation = 8.dp
-                    ) {
-                        NavigationBarItem(
-                            selected = currentNavTab == MainNavigationTab.SONGS && selectedPlaylistTarget == null,
-                            onClick = {
-                                viewModel.closePlaylistDetail()
-                                viewModel.selectNavTab(MainNavigationTab.SONGS)
-                            },
-                            icon = {
-                                Icon(
-                                    imageVector = Icons.Default.MusicNote,
-                                    contentDescription = "Canciones"
-                                )
-                            },
-                            label = {
-                                Text(
-                                    text = "Canciones",
-                                    style = MaterialTheme.typography.labelSmall
-                                )
-                            },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = Color.Black,
-                                selectedTextColor = GreenAccent,
-                                indicatorColor = GreenPrimary,
-                                unselectedIconColor = TextSecondary,
-                                unselectedTextColor = TextSecondary
-                            ),
-                            modifier = Modifier.testTag("nav_tab_songs")
-                        )
-
-                        NavigationBarItem(
-                            selected = currentNavTab == MainNavigationTab.PLAYLISTS || selectedPlaylistTarget != null,
-                            onClick = {
-                                viewModel.selectNavTab(MainNavigationTab.PLAYLISTS)
-                            },
-                            icon = {
-                                Icon(
-                                    imageVector = Icons.Default.QueueMusic,
-                                    contentDescription = "Playlists"
-                                )
-                            },
-                            label = {
-                                Text(
-                                    text = "Playlists",
-                                    style = MaterialTheme.typography.labelSmall
-                                )
-                            },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = Color.Black,
-                                selectedTextColor = GreenAccent,
-                                indicatorColor = GreenPrimary,
-                                unselectedIconColor = TextSecondary,
-                                unselectedTextColor = TextSecondary
-                            ),
-                            modifier = Modifier.testTag("nav_tab_playlists")
-                        )
-                    }
+                    // Barra de navegación inferior modular
+                    MainBottomNavBar(
+                        currentNavTab = currentNavTab,
+                        selectedPlaylistTarget = selectedPlaylistTarget,
+                        onSelectSongs = {
+                            viewModel.closePlaylistDetail()
+                            viewModel.selectNavTab(MainNavigationTab.SONGS)
+                        },
+                        onSelectPlaylists = {
+                            viewModel.selectNavTab(MainNavigationTab.PLAYLISTS)
+                        }
+                    )
                 }
             }
         }
@@ -282,7 +177,7 @@ fun MainMusicScreen(
                 .fillMaxSize()
                 .padding(bottom = paddingValues.calculateBottomPadding())
         ) {
-            // Contenido según la pestaña y estado de navegación
+            // Contenido principal según la pestaña y estado de navegación
             if (selectedPlaylistTarget != null) {
                 PlaylistDetailView(
                     target = selectedPlaylistTarget!!,
@@ -447,7 +342,7 @@ fun MainMusicScreen(
                 }
             }
 
-            // Ecualizador Gráfico y Paramétrico de 10 Bandas (C++ DSP en Oboe y Media3)
+            // Ecualizador Paramétrico de 10 Bandas C++
             EqualizerModal(
                 isVisible = isEqualizerOpen,
                 isEnabled = isEqualizerEnabled,
@@ -468,7 +363,7 @@ fun MainMusicScreen(
                 }
             )
 
-            // Modal de Audio Espacial 360° / Efecto 8D Nativo C++ (Oboe Exclusivo)
+            // Modal de Audio Espacial 360° / Efecto 8D Nativo C++
             SpatialAudio8DModal(
                 isOpen = isSpatialAudioModalOpen,
                 isEnabled = isSpatialAudioEnabled,
@@ -493,7 +388,7 @@ fun MainMusicScreen(
                 onDismiss = { viewModel.closeSleepTimerModal() }
             )
 
-            // Pantalla de Ajustes (Completa con animación horizontal)
+            // Pantalla de Ajustes
             AnimatedVisibility(
                 visible = isSettingsOpen,
                 enter = slideInHorizontally(
@@ -521,100 +416,48 @@ fun MainMusicScreen(
         }
     }
 
-    // Modal de Consola de Debug y Diagnóstico Crudo
-    if (isDebugConsoleOpen) {
-        DebugConsoleModal(
-            onDismiss = { viewModel.closeDebugConsole() },
-            onOpenDatabaseInspector = {
-                viewModel.closeDebugConsole()
-                viewModel.openDatabaseInspector()
-            }
-        )
-    }
-
-    // Modal de Inspector de Base de Datos Room en Pantalla (DebugDrawer / Android-Debug-Database)
-    if (isDatabaseInspectorOpen) {
-        RoomDatabaseInspectorModal(
-            onDismiss = { viewModel.closeDatabaseInspector() }
-        )
-    }
-
-    // Overlay Flotante de Monitor de FPS y Rendimiento de Renderizado (Takt / TinyDancer)
-    FpsOverlay()
-
-    // Diálogo de Edición de Metadatos con Rust
-    editingTrack?.let { track ->
-        EditTrackMetadataDialog(
-            track = track,
-            onDismiss = { viewModel.closeTrackEditor() },
-            onSave = { newTitle, newArtist ->
-                viewModel.updateTrackWithRust(track, newTitle, newArtist)
-            }
-        )
-    }
-
-    // Diálogo de Error Crudo Interceptado
-    rawErrorDialog?.let { err ->
-        RawErrorDialog(
-            errorMessage = err,
-            onDismiss = { viewModel.dismissRawErrorDialog() },
-            onOpenDebugConsole = {
-                viewModel.dismissRawErrorDialog()
-                viewModel.openDebugConsole()
-            }
-        )
-    }
-
-    // Diálogo de Selección Inicial de Motor (Sólo en primer inicio)
-    if (showEngineDialog) {
-        EngineSelectDialog(
-            currentEngine = activeEngine,
-            onEngineSelected = { newEngine ->
-                viewModel.selectInitialEngine(newEngine)
-            },
-            onDismissRequest = {
-                viewModel.dismissInitialEnginePrompt()
-            }
-        )
-    }
-
-    // Diálogo de Creación de Playlist
-    if (showCreatePlaylistDialog) {
-        CreatePlaylistDialog(
-            onDismiss = { showCreatePlaylistDialog = false },
-            onConfirm = { name, desc ->
-                viewModel.createPlaylist(name, desc)
-                showCreatePlaylistDialog = false
-            }
-        )
-    }
-
-    // Diálogo de Edición de Playlist existente
-    playlistToEdit?.let { pl ->
-        CreatePlaylistDialog(
-            initialName = pl.name,
-            initialDescription = pl.description,
-            isEditing = true,
-            onDismiss = { playlistToEdit = null },
-            onConfirm = { name, desc ->
-                viewModel.updatePlaylist(pl, name, desc)
-                playlistToEdit = null
-            }
-        )
-    }
-
-    // Modal BottomSheet para Añadir canción a Playlist
-    trackForAddToPlaylist?.let { trk ->
-        AddToPlaylistBottomSheet(
-            track = trk,
-            playlists = playlists,
-            getPlaylistIdsForTrack = { viewModel.getPlaylistIdsForTrack(it) },
-            onToggleLiked = { viewModel.toggleTrackLiked(it) },
-            onToggleFavorite = { viewModel.toggleTrackFavorite(it) },
-            onAddToPlaylist = { pl, tr -> viewModel.addTrackToPlaylist(pl, tr) },
-            onRemoveFromPlaylist = { plId, tr -> viewModel.removeTrackFromPlaylist(plId, tr) },
-            onCreateNewPlaylist = { showCreatePlaylistDialog = true },
-            onDismiss = { trackForAddToPlaylist = null }
-        )
-    }
+    // Anfitrión modular de todos los modales de diagnóstico, editores y cuadros de diálogo
+    MainModalsHost(
+        isDebugConsoleOpen = isDebugConsoleOpen,
+        isDatabaseInspectorOpen = isDatabaseInspectorOpen,
+        rawErrorDialog = rawErrorDialog,
+        showEngineDialog = showEngineDialog,
+        activeEngine = activeEngine,
+        editingTrack = editingTrack,
+        showCreatePlaylistDialog = showCreatePlaylistDialog,
+        playlistToEdit = playlistToEdit,
+        trackForAddToPlaylist = trackForAddToPlaylist,
+        playlists = playlists,
+        onCloseDebugConsole = { viewModel.closeDebugConsole() },
+        onOpenDatabaseInspector = { viewModel.openDatabaseInspector() },
+        onCloseDatabaseInspector = { viewModel.closeDatabaseInspector() },
+        onDismissRawError = { viewModel.dismissRawErrorDialog() },
+        onOpenDebugFromRawError = {
+            viewModel.dismissRawErrorDialog()
+            viewModel.openDebugConsole()
+        },
+        onSelectEngine = { newEngine -> viewModel.selectInitialEngine(newEngine) },
+        onDismissEngineDialog = { viewModel.dismissInitialEnginePrompt() },
+        onCloseTrackEditor = { viewModel.closeTrackEditor() },
+        onSaveTrackMetadata = { track, title, artist ->
+            viewModel.updateTrackWithRust(track, title, artist)
+        },
+        onDismissCreatePlaylist = { showCreatePlaylistDialog = false },
+        onCreatePlaylist = { name, desc ->
+            viewModel.createPlaylist(name, desc)
+            showCreatePlaylistDialog = false
+        },
+        onDismissEditPlaylist = { playlistToEdit = null },
+        onUpdatePlaylist = { pl, name, desc ->
+            viewModel.updatePlaylist(pl, name, desc)
+            playlistToEdit = null
+        },
+        onDismissAddToPlaylist = { trackForAddToPlaylist = null },
+        onToggleLiked = { viewModel.toggleTrackLiked(it) },
+        onToggleFavorite = { viewModel.toggleTrackFavorite(it) },
+        onAddTrackToPlaylist = { pl, tr -> viewModel.addTrackToPlaylist(pl, tr) },
+        onRemoveTrackFromPlaylist = { plId, tr -> viewModel.removeTrackFromPlaylist(plId, tr) },
+        onRequestCreateNewPlaylist = { showCreatePlaylistDialog = true },
+        getPlaylistIdsForTrack = { viewModel.getPlaylistIdsForTrack(it) }
+    )
 }

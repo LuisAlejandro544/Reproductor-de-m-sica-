@@ -7,41 +7,54 @@ Este documento detalla la arquitectura de software, la organización de director
 ## 🏛️ Diagrama de Capas del Sistema
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                            Capa de Presentación                             │
-│              Jetpack Compose (Material Design 3 / Dark Theme)               │
-│   MainMusicScreen ──► MiniPlayer ──► FullPlayerView ──► EqualizerModal      │
-│          │                   │                                 │            │
-│          ▼                   ▼                                 ▼            │
-│   DebugConsoleModal   RawErrorDialog               EditTrackMetadataDialog  │
-│  (Logs y Códigos)    (Alerta Cruda)                 (Edición Nativa Rust)   │
-└──────────────────────────────────────┬──────────────────────────────────────┘
-                                       │ StateFlow / Eventos
-┌──────────────────────────────────────▼──────────────────────────────────────┐
-│                            Capa de Lógica (MVVM)                            │
-│                            MusicPlayerViewModel                             │
-│       Coordina reproducción, búsquedas, selección de motor, ecualizador,    │
-│           edición de tags con Rust y telemetría en DebugLogManager          │
-└──────────────┬───────────────────────┬──────────────────────────────┬───────┘
-               │                       │                              │
-┌──────────────▼─────────────┐ ┌───────▼──────────────┐ ┌─────────────▼───────┐
-│    Capa de Datos Local     │ │ Capa de Reproducción │ │   Capa de Debug     │
-│      (Room Database)       │ │ (AudioPlayerManager) │ │  (DebugLogManager)  │
-│ TrackEntity / TrackDao     │ │ Singleton unificado  │ │ Búfer en memoria    │
-│  y Archivos JSON modulares │ └───────┬──────────────┘ │ con códigos crudos  │
-└────────────────────────────┘         │                └─────────────────────┘
-                                       │
-                    ┌──────────────────▼──┐   ┌───────────────────────┐
-                    │ Motor 1: Media3     │   │ Motor 2: Nativo C++   │
-                    │ ExoPlayer (Java/KT) │   │ (Oboe / AAudio / JNI) │
-                    └──────────┬──────────┘   └───────┬───────┬───────┘
-                               │                      │       │
-                               ▼                      ▼       ▼
-                    ┌─────────────────────┐       ┌──────┐ ┌──────────────────┐
-                    │ MediaSessionService │       │  EQ  │ │ Núcleo Rust      │
-                    │ + AudioProcessor    │◄──────┤ 10-B │ │ (ritmo_rust)     │
-                    │ (EQ C++ Biquad IIR) │       │(C++) │ │ Metadatos / Tags │
-                    └─────────────────────┘       └──────┘ └──────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                                  Capa de Presentación                                   │
+│                    Jetpack Compose (Material Design 3 / Dark Theme)                     │
+│   MainMusicScreen ──► MainBottomNavBar ──► MiniPlayer ──► FullPlayerView                │
+│          │                                                        │                     │
+│          ├─────────────────────────────────────────┐              ├─► PlayerHeader      │
+│          ▼                                         ▼              ├─► PlayerCenterDisplay│
+│   MainModalsHost                           EqualizerModal (C++)   ├─► PlayerTrackDetails│
+│   ├─► DebugConsoleModal (Logs y Códigos)   SpatialAudio8DModal    ├─► PlayerProgressBar │
+│   ├─► RawErrorDialog (Alerta Cruda)        SleepTimerModal        ├─► PlayerControlsRow │
+│   ├─► EditTrackMetadataDialog (Rust)                              └─► PlayerQuickActions│
+│   └─► RoomDatabaseInspectorModal & FpsOverlay                                           │
+└────────────────────────────────────────────┬────────────────────────────────────────────┘
+                                             │ StateFlow / Eventos
+┌────────────────────────────────────────────▼────────────────────────────────────────────┐
+│                                  Capa de Lógica (MVVM)                                  │
+│                                  MusicPlayerViewModel                                   │
+│                     Orquestador desacoplado en delegados modulares:                     │
+│        ├─► PlaylistViewModelDelegate: CRUD de listas y auto-generación por artista      │
+│        ├─► TrackMediaDelegate: Tags nativos en Rust, WebP Lossless y letras LRC         │
+│        └─► AudioPlayerManager: Coordinación multicanal de reproducción y DSP C++        │
+└──────────────┬─────────────────────────────┬──────────────────────────────┬─────────────┘
+               │                             │                              │
+┌──────────────▼───────────┐   ┌─────────────▼────────────┐   ┌─────────────▼─────────────┐
+│    Capa de Datos Local   │   │   Capa de Reproducción   │   │       Capa de Debug       │
+│      (Room Database)     │   │   (AudioPlayerManager)   │   │     (DebugLogManager)     │
+│ TrackEntity / TrackDao   │   │   Singleton unificado    │   │     Búfer en memoria      │
+│ PlaylistDao / CrossRef   │   └─────────────┬────────────┘   │    con códigos crudos     │
+│ y Archivos JSON modulares│                 │                └───────────────────────────┘
+└──────────────────────────┘                 │
+                              ┌──────────────▼──────┐   ┌───────────────────────────┐
+                              │ Motor 1: Media3     │   │ Motor 2: Nativo C++       │
+                              │ ExoPlayer (Java/KT) │   │ (Oboe / AAudio / JNI)     │
+                              └──────────────┬──────┘   └─────────────┬─────────────┘
+                                             │                        │
+                                             ▼                        ▼
+                              ┌─────────────────────┐   ┌───────────────────────────┐
+                              │ MediaSessionService │   │ AudioDecoder (NDK C++)    │
+                              │ + AudioProcessor    │   │ Decodificación multihilo  │
+                              │ (EQ C++ Biquad IIR) │   └─────────────┬─────────────┘
+                              └──────────────┬──────┘                 │
+                                             │          ┌─────────────▼─────────────┐
+                                             ▼          │ DSP 10-Bandas & Audio 8D  │
+                                      ┌─────────────┐   │ Filtros Biquad IIR C++    │
+                                      │ Núcleo Rust │◄──┤ (native_audio / equalizer)│
+                                      │(ritmo_rust) │   └───────────────────────────┘
+                                      │ Tags / C-ABI│
+                                      └─────────────┘
 ```
 
 ---
@@ -63,15 +76,18 @@ Este documento detalla la arquitectura de software, la organización de director
 ├── commit_message.txt                # Mensaje de commit en español actualizado
 ├── app/
 │   ├── build.gradle.kts              # Script Gradle con integración NDK, CMake y tarea compileRust
-│   ├── CMakeLists.txt                # Enlace de C++ Oboe y librust_audio.a
+│   ├── CMakeLists.txt                # Enlace de C++ Oboe, AudioDecoder y librust_audio.a
 │   └── src/
 │       └── main/
 │           ├── AndroidManifest.xml   # Permisos de almacenamiento y servicio MediaSession
 │           ├── cpp/                  # Código fuente Nativo en C++
 │           │   ├── CMakeLists.txt
+│           │   ├── audio_decoder.h   # Cabecera del decodificador modular multihilo NDK AMediaCodec
+│           │   ├── audio_decoder.cpp # Decodificador asíncrono con AMediaExtractor y gestión de búfers PCM
 │           │   ├── equalizer.h       # Filtros Biquad IIR Transposed Direct Form II (10 bandas)
-│           │   ├── native_audio.h    # Cabecera de OboeAudioPlayer con mutex de errores
-│           │   ├── native_audio.cpp  # Implementación de audio Oboe y diagnóstico (error codes)
+│           │   ├── spatial_audio.h   # Algoritmo de paneo binaural y convolución 360° / Efecto 8D
+│           │   ├── native_audio.h    # Cabecera de OboeAudioPlayer con delegación hacia AudioDecoder
+│           │   ├── native_audio.cpp  # Implementación de audio Oboe, DSP y diagnóstico (error codes crudos)
 │           │   └── native_bridge.cpp # JNI exports de C++ y puente hacia funciones C-ABI de Rust
 │           ├── rust/                 # Crate nativo de Rust (ritmo_rust)
 │           │   ├── Cargo.toml        # Dependencias: id3, metaflac, lofty, jni
@@ -90,6 +106,9 @@ Este documento detalla la arquitectura de software, la organización de director
 │           │   ├── RitmoApplication.kt # Inicialización de Timber, LeakCanary y RitmoCrashHandler
 │           │   ├── data/
 │           │   │   ├── AppDatabase.kt
+│           │   │   ├── PlaylistDao.kt    # Operaciones Room para playlists y referencias cruzadas
+│           │   │   ├── PlaylistEntity.kt
+│           │   │   ├── PlaylistTrackCrossRef.kt
 │           │   │   ├── TrackDao.kt       # Consultas Room con updateTrackMetadata
 │           │   │   ├── TrackEntity.kt
 │           │   │   └── TrackRepository.kt
@@ -105,16 +124,24 @@ Este documento detalla la arquitectura de software, la organización de director
 │           │   │   ├── EqualizerState.kt
 │           │   │   ├── Media3EqualizerAudioProcessor.kt # AudioProcessor Media3 con JNI C++
 │           │   │   ├── OboeAudioBridge.kt # Métodos nativos de reproducción y diagnóstico
+│           │   │   ├── SleepTimerManager.kt # Gestor del temporizador de sueño
 │           │   │   └── RitmoMediaSessionService.kt # Servicio de segundo plano
 │           │   ├── ui/
-│           │   │   ├── MainMusicScreen.kt # Orquestador principal de la interfaz
-│           │   │   ├── MusicPlayerViewModel.kt
+│           │   │   ├── MainMusicScreen.kt # Orquestador principal modularizado de la interfaz
+│           │   │   ├── MusicPlayerViewModel.kt # ViewModel desacoplado mediante delegados modulares
 │           │   │   ├── SettingsScreen.kt # Pantalla de ajustes modularizada
+│           │   │   ├── delegates/        # Delegados modulares de lógica de negocio (MVVM)
+│           │   │   │   ├── PlaylistViewModelDelegate.kt # Gestión de playlists y auto-generación de artistas
+│           │   │   │   └── TrackMediaDelegate.kt        # Tags Rust, carátulas Lossless WebP y letras LRC
 │           │   │   ├── main/             # Submódulos de la pantalla principal
 │           │   │   │   ├── MainTopAppBar.kt
 │           │   │   │   ├── MainProgressBanners.kt
 │           │   │   │   ├── MainSearchBar.kt
+│           │   │   │   ├── MainBottomNavBar.kt # Barra de navegación táctil 48dp (Canciones / Playlists)
+│           │   │   │   ├── MainModalsHost.kt   # Anfitrión desacoplado de modales, alertas y consola
 │           │   │   │   ├── EmptyLibraryView.kt
+│           │   │   │   ├── PlaylistDetailView.kt
+│           │   │   │   ├── PlaylistListView.kt
 │           │   │   │   └── TrackListView.kt
 │           │   │   ├── settings/         # Submódulos de la pantalla de ajustes
 │           │   │   │   ├── SettingsComponents.kt
@@ -125,16 +152,29 @@ Este documento detalla la arquitectura de software, la organización de director
 │           │   │   │   └── SettingsAboutSection.kt
 │           │   │   ├── components/
 │           │   │   │   ├── AlbumArtView.kt
-│           │   │   │   ├── DebugConsoleModal.kt # Consola táctil con logs crudos, copia individual (48dp) y visualizador de crashes
+│           │   │   │   ├── AddToPlaylistBottomSheet.kt
+│           │   │   │   ├── CreatePlaylistDialog.kt
+│           │   │   │   ├── DebugConsoleModal.kt # Consola táctil con logs crudos, copia individual (48dp)
 │           │   │   │   ├── EditLyricsDialog.kt # Editor táctil de letras sincronizadas LRC y texto plano
 │           │   │   │   ├── EditTrackMetadataDialog.kt # Diálogo de edición de tags con Rust
 │           │   │   │   ├── EngineSelectDialog.kt
 │           │   │   │   ├── EqualizerModal.kt
-│           │   │   │   ├── FullPlayerView.kt # Reproductor completo con switcher carátula/lyrics
+│           │   │   │   ├── FpsOverlay.kt
+│           │   │   │   ├── FullPlayerView.kt # Reproductor completo modularizado
 │           │   │   │   ├── LyricsView.kt     # Visualizador de letras con autodesplazamiento y seek interactivo
 │           │   │   │   ├── MiniPlayer.kt
 │           │   │   │   ├── RawErrorDialog.kt # Alerta emergente ante errores numéricos crudos
-│           │   │   │   └── TrackListItem.kt
+│           │   │   │   ├── RoomDatabaseInspectorModal.kt
+│           │   │   │   ├── SleepTimerModal.kt
+│           │   │   │   ├── SpatialAudio8DModal.kt
+│           │   │   │   ├── TrackListItem.kt
+│           │   │   │   └── player/           # Subcomponentes desacoplados de FullPlayerView
+│           │   │   │       ├── PlayerHeader.kt
+│           │   │   │       ├── PlayerCenterDisplay.kt
+│           │   │   │       ├── PlayerTrackDetails.kt
+│           │   │   │       ├── PlayerProgressBar.kt
+│           │   │   │       ├── PlayerControlsRow.kt
+│           │   │   │       └── PlayerBottomQuickActions.kt
 │           │   │   └── theme/
 │           │   └── util/
 │           │       ├── AppStorageManager.kt # Gestión de carpetas music/, covers/, artists/
@@ -165,6 +205,10 @@ Este documento detalla la arquitectura de software, la organización de director
 - `nativeGetLastErrorString()`: Devuelve el mensaje descriptivo del fallo.
 - `nativeGetAudioDeviceInfo()`: Información del hardware de audio activo (`AAudio`/`OpenSL ES`).
 - `nativeGetStreamStatsJson()`: Estadísticas de frames leídos, xruns y estado del stream.
+
+### 3. Decodificación Nativa C++ con AMediaCodec (`AudioDecoder`)
+- `audio_decoder.cpp`: Extrae pistas de audio comprimidas (`AMediaExtractor`) y decodifica a muestras PCM en coma flotante de 32 bits a través de `AMediaCodec`.
+- Ejecución asíncrona mediante hilo en segundo plano (`std::thread`), evitando bloqueos en el hilo de reproducción de audio y garantizando búfers continuos libres de xruns.
 
 ---
 

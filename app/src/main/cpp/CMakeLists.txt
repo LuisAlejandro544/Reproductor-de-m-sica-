@@ -8,6 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(oboe REQUIRED CONFIG)
 
 add_library(ritmo_native SHARED
+    audio_decoder.cpp
     native_audio.cpp
     native_bridge.cpp
 )

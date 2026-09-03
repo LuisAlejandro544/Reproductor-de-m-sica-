@@ -1,6 +1,14 @@
-docs: purgar cache de compilacion de rust y actualizar exclusiones en gitignore
+refactor: modularizacion arquitectonica de FullPlayerView, native_audio, MusicPlayerViewModel y MainMusicScreen
 
-- Eliminada carpeta innecesaria de artefactos intermedios de compilacion Rust (app/src/main/rust/target/)
-- Actualizado .gitignore con reglas de exclusion para target/, binarios, CMake y salidas de compilacion
-- Anadido workflow manual de GitHub Actions (.github/workflows/purge-rust-cache.yml) para purgar artefactos target del historial Git con git-filter-repo
-- Sincronizada la documentacion de arquitectura en STRUCTURE.md
+- Modularizacion de native_audio.cpp: desacoplamiento del ciclo de vida de decodificacion en AudioDecoder (AMediaCodec/AMediaExtractor asincrono en C++)
+- Modularizacion de FullPlayerView: descomposicion en subcomponentes desacoplados en ui/components/player/ (PlayerHeader, PlayerCenterDisplay, PlayerTrackDetails, PlayerProgressBar, PlayerControlsRow, PlayerBottomQuickActions)
+- Modularizacion de MusicPlayerViewModel: separacion de responsabilidades en delegados de dominio (PlaylistViewModelDelegate y TrackMediaDelegate)
+- Modularizacion de MainMusicScreen: extraccion de navegacion tactil en MainBottomNavBar y modales/alertas/diagnostico en MainModalsHost
+- Actualizacion de la documentacion de arquitectura en STRUCTURE.md
+
+---
+
+ci: corregir remoto origin autenticado en purge-rust-cache
+
+- Reconfigurar el remoto origin con GITHUB_TOKEN tras la ejecucion de git-filter-repo
+- Corregir error fatal 'origin does not appear to be a git repository' al forzar el push del historial purgado

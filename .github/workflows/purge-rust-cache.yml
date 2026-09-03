@@ -37,5 +37,6 @@ jobs:
 
       - name: Forzar actualización en remoto (todas las ramas y tags)
         run: |
+          git remote add origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
           git push origin --force --all
           git push origin --force --tags

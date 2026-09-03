@@ -6,6 +6,7 @@
 #include <media/NdkMediaCodec.h>
 #include "equalizer.h"
 #include "spatial_audio.h"
+#include "audio_decoder.h"
 #include <string>
 #include <vector>
 #include <atomic>
@@ -76,7 +77,6 @@ public:
 private:
     bool openStream();
     void closeStream();
-    void decodeRemaining(AMediaExtractor *extractor, AMediaCodec *codec, int fd, bool initialSawInputEOS);
 
     std::shared_ptr<oboe::AudioStream> mAudioStream;
     std::string mCurrentFilePath;
@@ -97,7 +97,7 @@ private:
     std::atomic<bool> mIsDecodingFinished{false};
     std::atomic<float> mVolume{1.0f};
 
-    std::thread mDecoderThread;
+    AudioDecoder mDecoder;
 
     TenBandEqualizer mEqualizer;
     SpatialAudio8DProcessor mSpatial8D;
