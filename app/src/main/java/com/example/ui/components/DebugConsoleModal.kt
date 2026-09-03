@@ -25,8 +25,12 @@ import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -59,13 +63,17 @@ import androidx.compose.ui.unit.sp
 import com.example.debug.DebugLogEntry
 import com.example.debug.DebugLogLevel
 import com.example.debug.DebugLogManager
+import com.example.debug.FpsMonitor
+import com.example.debug.FpsStatus
 import com.example.playback.OboeAudioBridge
 import com.example.util.RustAudioEngine
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DebugConsoleModal(
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onOpenDatabaseInspector: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -181,6 +189,84 @@ fun DebugConsoleModal(
                         text = "• Detección Fugas: ✅ LeakCanary listo (Debug APK)",
                         style = MaterialTheme.typography.bodySmall,
                         fontFamily = FontFamily.Monospace
+                    )
+
+                    val fpsMetrics by FpsMonitor.metricsFlow.collectAsState()
+                    val fpsColor = when (fpsMetrics.status) {
+                        FpsStatus.EXCELLENT -> Color(0xFF00E676)
+                        FpsStatus.GOOD -> Color(0xFF40C4FF)
+                        FpsStatus.MODERATE -> Color(0xFFFFD600)
+                        FpsStatus.JANK -> Color(0xFFFF5252)
+                    }
+                    Text(
+                        text = "• Monitor FPS (Takt): ${String.format(Locale.US, "%.1f", fpsMetrics.fps)} FPS (${String.format(Locale.US, "%.1f", fpsMetrics.frameTimeMs)} ms) | Drops: ${fpsMetrics.droppedFrames}",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = fpsColor
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Herramientas Avanzadas en Pantalla (Touch targets >= 48dp)
+            Text(
+                text = "HERRAMIENTAS DE DEPURACIÓN EN PANTALLA",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+
+            val fpsMetricsState by FpsMonitor.metricsFlow.collectAsState()
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Botón Inspector de Base de Datos Room
+                Button(
+                    onClick = {
+                        onOpenDatabaseInspector?.invoke()
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    ),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp)
+                        .testTag("open_room_inspector_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Storage,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Inspector Room", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+
+                // Botón Monitor de FPS Overlay (Takt / TinyDancer)
+                OutlinedButton(
+                    onClick = {
+                        FpsMonitor.toggleOverlay()
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp)
+                        .testTag("toggle_fps_overlay_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Speed,
+                        contentDescription = null,
+                        tint = if (fpsMetricsState.isOverlayVisible) Color(0xFF00E676) else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = if (fpsMetricsState.isOverlayVisible) "FPS: ACTIVO" else "FPS: INACTIVO",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
             }

@@ -35,6 +35,9 @@ interface TrackDao {
     @Query("UPDATE tracks SET isFavorite = :isFavorite WHERE id = :id")
     suspend fun updateFavorite(id: Long, isFavorite: Boolean)
 
+    @Query("UPDATE tracks SET lyrics = :lyrics WHERE id = :id")
+    suspend fun updateLyrics(id: Long, lyrics: String?)
+
     @Query("SELECT * FROM tracks WHERE isLiked = 1 ORDER BY dateAdded DESC")
     fun getLikedTracks(): Flow<List<TrackEntity>>
 

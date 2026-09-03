@@ -235,7 +235,7 @@ bool OboeAudioPlayer::decodeAudioFile(const std::string& filePath) {
     mPcmBuffer.clear();
     if (durationUs > 0 && sampleRate > 0 && channelCount > 0) {
         size_t estimatedSamples = static_cast<size_t>((durationUs * sampleRate * channelCount) / 1000000LL);
-        mPcmBuffer.reserve(estimatedSamples + 32768);
+        mPcmBuffer.reserve(std::min<size_t>(estimatedSamples + 32768, 44100 * 2 * 60 * 10));
     }
 
     bool sawInputEOS = false;
@@ -248,7 +248,7 @@ bool OboeAudioPlayer::decodeAudioFile(const std::string& filePath) {
         bool progress = false;
 
         if (!sawInputEOS) {
-            ssize_t inputBufIndex = AMediaCodec_dequeueInputBuffer(codec, 0);
+            ssize_t inputBufIndex = AMediaCodec_dequeueInputBuffer(codec, 1000);
             if (inputBufIndex >= 0) {
                 progress = true;
                 size_t bufSize = 0;
@@ -268,7 +268,7 @@ bool OboeAudioPlayer::decodeAudioFile(const std::string& filePath) {
         }
 
         AMediaCodecBufferInfo info;
-        ssize_t outputBufIndex = AMediaCodec_dequeueOutputBuffer(codec, &info, 0);
+        ssize_t outputBufIndex = AMediaCodec_dequeueOutputBuffer(codec, &info, 1000);
         if (outputBufIndex >= 0) {
             progress = true;
             emptyDequeueCount = 0;
@@ -306,7 +306,7 @@ bool OboeAudioPlayer::decodeAudioFile(const std::string& filePath) {
         }
 
         if (!progress && !sawOutputEOS) {
-            usleep(200);
+            usleep(50);
         }
     }
 

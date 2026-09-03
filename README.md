@@ -43,7 +43,18 @@ La aplicación está concebida para su distribución independiente en tiendas de
 - **Generación Procedural Automática de Carátulas:** Si una pista carece de arte embebido, el sistema genera automáticamente una portada audiófila única y determinista basada en el título y artista (gradientes armónicos, ondas concéntricas, visualizador espectral y monograma tipográfico con sombra) guardada en WebP Lossless.
 - **Android Photo Picker Oficial:** Selección visual de carátulas sin requerir permisos invasivos de almacenamiento.
 
-### 5. 📱 Experiencia Táctil Ergonómica y Reproducción en Segundo Plano
+### 5. 📜 Visualizador y Editor de Letras Sincronizadas (LRC y Texto)
+- **Sincronización en Tiempo Real:** Motor `LyricsParser` con soporte completo de marcas de tiempo estándar y centésimas (`[mm:ss.xx]`), seguimiento de la línea activa y salto temporal (*seek*) al tocar cualquier estrofa.
+- **Transición Táctil en Reproductor:** Transición animada fluida en `FullPlayerView` que alterna entre la carátula y el componente `LyricsView` con un toque.
+- **Persistencia y Compatibilidad Offline:** Almacenamiento directo en Room (columna `lyrics`), sincronización con archivos JSON modulares y lectura/escritura automática de archivos complementarios `.lrc` en el almacenamiento local junto a la pista de audio.
+- **Editor Táctil Integrado (`EditLyricsDialog`):** Diálogo interactivo accesible en cualquier momento para ingresar, modificar o pegar letras desde el portapapeles.
+
+### 6. 🎵 Generación Automática Inteligente de Playlists por Artista
+- **Detección Automática de Colección (3+ Canciones):** Algoritmo en segundo plano que analiza la biblioteca y crea automáticamente una playlist dedicada para cualquier artista del que se dispongan 3 o más canciones.
+- **Sincronización Proactiva:** Cualquier nueva canción importada de ese artista se añade automáticamente a la lista sin intervención del usuario.
+- **Distintivo Visual en Interfaz:** Las listas automáticas se identifican con el badge `"ARTISTA"` y un icono dedicado en `PlaylistListView`.
+
+### 7. 📱 Experiencia Táctil Ergonómica y Reproducción en Segundo Plano
 - **`RitmoMediaSessionService`:** Control continuo desde la barra de notificaciones, pantalla de bloqueo y dispositivos Bluetooth.
 - **Controles Táctiles de 48dp:** Diseñados específicamente para navegación y control cómodo con una sola mano en pantallas de smartphones.
 - **Animaciones Fluidas:** Curvas `FastOutSlowInEasing`, escalado elástico `spring` en carátulas y barras animadas en vivo para la pista en reproducción.

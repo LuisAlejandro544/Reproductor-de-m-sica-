@@ -53,9 +53,11 @@ import com.example.ui.components.DebugConsoleModal
 import com.example.ui.components.EditTrackMetadataDialog
 import com.example.ui.components.EngineSelectDialog
 import com.example.ui.components.EqualizerModal
+import com.example.ui.components.FpsOverlay
 import com.example.ui.components.FullPlayerView
 import com.example.ui.components.MiniPlayer
 import com.example.ui.components.RawErrorDialog
+import com.example.ui.components.RoomDatabaseInspectorModal
 import com.example.ui.main.EmptyLibraryView
 import com.example.ui.main.MainProgressBanners
 import com.example.ui.main.MainSearchBar
@@ -111,6 +113,7 @@ fun MainMusicScreen(
 
     val editingTrack by viewModel.editingTrack.collectAsStateWithLifecycle()
     val isDebugConsoleOpen by viewModel.isDebugConsoleOpen.collectAsStateWithLifecycle()
+    val isDatabaseInspectorOpen by viewModel.isDatabaseInspectorOpen.collectAsStateWithLifecycle()
     val rawErrorDialog by viewModel.rawErrorDialog.collectAsStateWithLifecycle()
 
     val currentNavTab by viewModel.currentNavTab.collectAsStateWithLifecycle()
@@ -423,7 +426,8 @@ fun MainMusicScreen(
                         },
                         onToggleLiked = { viewModel.toggleTrackLiked(it) },
                         onToggleFavorite = { viewModel.toggleTrackFavorite(it) },
-                        onAddToPlaylist = { trackForAddToPlaylist = it }
+                        onAddToPlaylist = { trackForAddToPlaylist = it },
+                        onUpdateLyrics = { trk, lyrics -> viewModel.updateTrackLyrics(trk, lyrics) }
                     )
                 }
             }
@@ -480,9 +484,23 @@ fun MainMusicScreen(
     // Modal de Consola de Debug y Diagnóstico Crudo
     if (isDebugConsoleOpen) {
         DebugConsoleModal(
-            onDismiss = { viewModel.closeDebugConsole() }
+            onDismiss = { viewModel.closeDebugConsole() },
+            onOpenDatabaseInspector = {
+                viewModel.closeDebugConsole()
+                viewModel.openDatabaseInspector()
+            }
         )
     }
+
+    // Modal de Inspector de Base de Datos Room en Pantalla (DebugDrawer / Android-Debug-Database)
+    if (isDatabaseInspectorOpen) {
+        RoomDatabaseInspectorModal(
+            onDismiss = { viewModel.closeDatabaseInspector() }
+        )
+    }
+
+    // Overlay Flotante de Monitor de FPS y Rendimiento de Renderizado (Takt / TinyDancer)
+    FpsOverlay()
 
     // Diálogo de Edición de Metadatos con Rust
     editingTrack?.let { track ->

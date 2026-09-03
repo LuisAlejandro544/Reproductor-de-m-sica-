@@ -398,6 +398,8 @@ class AudioPlayerManager(private val context: Context) {
     fun next() {
         val nextTrack = queueManager.getNextTrack(forceAdvance = true)
         if (nextTrack != null) {
+            _currentPosition.value = 0L
+            _isPlaying.value = true
             playCurrentTrack()
         } else {
             seekTo(0L)
@@ -408,13 +410,21 @@ class AudioPlayerManager(private val context: Context) {
     fun previous() {
         if (_currentPosition.value > 3000L) {
             seekTo(0L)
+            if (!_isPlaying.value) {
+                play()
+            }
             return
         }
         val prevTrack = queueManager.getPreviousTrack()
         if (prevTrack != null) {
+            _currentPosition.value = 0L
+            _isPlaying.value = true
             playCurrentTrack()
         } else {
             seekTo(0L)
+            if (!_isPlaying.value) {
+                play()
+            }
         }
     }
 

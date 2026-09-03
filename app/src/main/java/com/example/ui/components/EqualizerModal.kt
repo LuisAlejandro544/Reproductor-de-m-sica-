@@ -296,9 +296,11 @@ fun EqualizerModal(
                     // Las 10 Bandas del Ecualizador
                     itemsIndexed(EqualizerDefaults.BAND_LABELS) { index, label ->
                         val currentGain = bandGains.getOrElse(index) { 0f }
+                        val bandName = EqualizerDefaults.BAND_NAMES.getOrElse(index) { "Banda ${index + 1}" }
                         BandSliderRow(
                             bandIndex = index,
                             label = label,
+                            bandName = bandName,
                             frequencyHz = EqualizerDefaults.BAND_FREQUENCIES[index],
                             gainDb = currentGain,
                             isEnabled = isEnabled,
@@ -317,6 +319,7 @@ fun EqualizerModal(
 private fun BandSliderRow(
     bandIndex: Int,
     label: String,
+    bandName: String,
     frequencyHz: Float,
     gainDb: Float,
     isEnabled: Boolean,
@@ -334,23 +337,25 @@ private fun BandSliderRow(
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Etiqueta de frecuencia
+            // Nombre descriptivo y frecuencia
             Column(
-                modifier = Modifier.width(64.dp)
+                modifier = Modifier.width(108.dp)
             ) {
                 Text(
-                    text = label,
+                    text = bandName,
                     style = MaterialTheme.typography.bodyMedium.copy(
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp
                     ),
+                    maxLines = 1,
                     color = if (isEnabled) TextPrimary else TextTertiary
                 )
                 Text(
-                    text = "${frequencyHz.toInt()} Hz",
+                    text = "$label (${frequencyHz.toInt()} Hz)",
                     style = MaterialTheme.typography.bodySmall.copy(
                         fontSize = 10.sp
                     ),
-                    color = TextTertiary
+                    color = if (isEnabled) GreenAccent.copy(alpha = 0.85f) else TextTertiary
                 )
             }
 

@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.Star
@@ -334,6 +335,8 @@ private fun CustomPlaylistRow(
     onDelete: () -> Unit
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
+    val isAutoArtist = playlist.description.contains("3+ canciones") ||
+            playlist.description.contains("Playlist automática")
 
     Row(
         modifier = Modifier
@@ -349,13 +352,13 @@ private fun CustomPlaylistRow(
             modifier = Modifier
                 .size(52.dp)
                 .clip(RoundedCornerShape(10.dp))
-                .background(DarkSurfaceVariant),
+                .background(if (isAutoArtist) GreenAccent.copy(alpha = 0.15f) else DarkSurfaceVariant),
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Default.QueueMusic,
+                imageVector = if (isAutoArtist) Icons.Default.Person else Icons.Default.QueueMusic,
                 contentDescription = null,
-                tint = GreenAccent,
+                tint = if (isAutoArtist) GreenAccent else TextSecondary,
                 modifier = Modifier.size(26.dp)
             )
         }
@@ -363,16 +366,34 @@ private fun CustomPlaylistRow(
         Spacer(modifier = Modifier.width(14.dp))
 
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = playlist.name,
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 16.sp
-                ),
-                color = TextPrimary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = playlist.name,
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 16.sp
+                    ),
+                    color = TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                if (isAutoArtist) {
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "ARTISTA",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold
+                        ),
+                        color = GreenAccent,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(GreenAccent.copy(alpha = 0.12f))
+                            .padding(horizontal = 4.dp, vertical = 1.dp)
+                    )
+                }
+            }
             if (playlist.description.isNotBlank()) {
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(

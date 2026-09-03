@@ -28,6 +28,10 @@ class TrackRepository(
         trackDao.updateArtworkPath(trackId, artworkPath)
     }
 
+    suspend fun updateLyrics(trackId: Long, lyrics: String?) {
+        trackDao.updateLyrics(trackId, lyrics)
+    }
+
     suspend fun updateTrackMetadata(id: Long, title: String, artist: String, album: String) {
         trackDao.updateTrackMetadata(id, title, artist, album)
     }

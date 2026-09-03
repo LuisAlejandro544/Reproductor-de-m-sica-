@@ -29,9 +29,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -113,11 +116,14 @@ fun FullPlayerView(
     onEditArtwork: (TrackEntity) -> Unit = {},
     onToggleLiked: (TrackEntity) -> Unit = {},
     onToggleFavorite: (TrackEntity) -> Unit = {},
-    onAddToPlaylist: (TrackEntity) -> Unit = {}
+    onAddToPlaylist: (TrackEntity) -> Unit = {},
+    onUpdateLyrics: (TrackEntity, String?) -> Unit = { _, _ -> }
 ) {
     var isDraggingSlider by remember { mutableStateOf(false) }
     var sliderDragPosition by remember { mutableFloatStateOf(0f) }
     var menuExpanded by remember { mutableStateOf(false) }
+    var showLyrics by remember { mutableStateOf(false) }
+    var showEditLyricsDialog by remember { mutableStateOf(false) }
 
     val effectivePosition = if (isDraggingSlider) {
         (sliderDragPosition * durationMs.toFloat()).toLong()
@@ -241,6 +247,36 @@ fun FullPlayerView(
                                         onEditArtwork(track)
                                     }
                                 )
+                                // Opción de visualización de letras de la canción
+                                DropdownMenuItem(
+                                    text = { Text(if (showLyrics) "Ver carátula" else "Ver letras de la canción", color = TextPrimary) },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = if (showLyrics) Icons.Default.Album else Icons.Default.FormatQuote,
+                                            contentDescription = null,
+                                            tint = GreenAccent
+                                        )
+                                    },
+                                    onClick = {
+                                        menuExpanded = false
+                                        showLyrics = !showLyrics
+                                    }
+                                )
+                                // Opción de edición o pegado de letras (.lrc / texto)
+                                DropdownMenuItem(
+                                    text = { Text("Editar / Pegar letras (LRC)", color = TextPrimary) },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.Edit,
+                                            contentDescription = null,
+                                            tint = GreenAccent
+                                        )
+                                    },
+                                    onClick = {
+                                        menuExpanded = false
+                                        showEditLyricsDialog = true
+                                    }
+                                )
                                 // Opción de ecualizador de 10 bandas (C++ DSP en Oboe y Media3)
                                 DropdownMenuItem(
                                     text = { Text("Ecualizador 10 Bandas (C++)", color = TextPrimary) },
@@ -276,47 +312,90 @@ fun FullPlayerView(
                     }
                 }
 
-                // Big Album Artwork with smooth breathing spring scale and direct artwork edit action
+                // Big Album Artwork or Lyrics View with smooth animated transition
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f, fill = false)
-                        .padding(vertical = 16.dp),
+                        .padding(vertical = 12.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(0.85f)
-                            .aspectRatio(1f)
-                            .scale(artworkScale),
-                        contentAlignment = Alignment.BottomEnd
-                    ) {
-                        AlbumArtView(
-                            artworkPath = track.artworkPath,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .shadow(24.dp, RoundedCornerShape(16.dp))
-                                .clip(RoundedCornerShape(16.dp)),
-                            cornerRadius = 16.dp,
-                            iconSize = 80.dp
-                        )
-
-                        // Botón táctil para cambiar o poner carátula (mínimo 48dp)
-                        IconButton(
-                            onClick = { onEditArtwork(track) },
-                            modifier = Modifier
-                                .padding(12.dp)
-                                .size(48.dp)
-                                .clip(CircleShape)
-                                .background(DarkSurface.copy(alpha = 0.85f))
-                                .testTag("full_player_change_artwork")
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.AddPhotoAlternate,
-                                contentDescription = "Cambiar o asignar carátula en formato WebP",
-                                tint = GreenAccent,
-                                modifier = Modifier.size(24.dp)
+                    AnimatedContent(
+                        targetState = showLyrics,
+                        transitionSpec = {
+                            (fadeIn(animationSpec = tween(240)) + scaleIn(initialScale = 0.94f, animationSpec = tween(240))) togetherWith
+                            (fadeOut(animationSpec = tween(200)) + scaleOut(targetScale = 0.94f, animationSpec = tween(200)))
+                        },
+                        label = "artwork_or_lyrics_anim"
+                    ) { isLyricsVisible ->
+                        if (isLyricsVisible) {
+                            LyricsView(
+                                lyricsText = track.lyrics,
+                                currentPositionMs = effectivePosition,
+                                onSeekTo = onSeekTo,
+                                onOpenEditLyrics = { showEditLyricsDialog = true },
+                                onToggleBackToCover = { showLyrics = false },
+                                modifier = Modifier
+                                    .fillMaxWidth(0.92f)
+                                    .aspectRatio(1f)
                             )
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(0.85f)
+                                    .aspectRatio(1f)
+                                    .scale(artworkScale),
+                                contentAlignment = Alignment.BottomEnd
+                            ) {
+                                AlbumArtView(
+                                    artworkPath = track.artworkPath,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .shadow(24.dp, RoundedCornerShape(16.dp))
+                                        .clip(RoundedCornerShape(16.dp)),
+                                    cornerRadius = 16.dp,
+                                    iconSize = 80.dp
+                                )
+
+                                Row(
+                                    modifier = Modifier.padding(10.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    // Botón directo para abrir letras
+                                    IconButton(
+                                        onClick = { showLyrics = true },
+                                        modifier = Modifier
+                                            .size(48.dp)
+                                            .clip(CircleShape)
+                                            .background(DarkSurface.copy(alpha = 0.85f))
+                                            .testTag("full_player_view_lyrics_btn")
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.FormatQuote,
+                                            contentDescription = "Ver letras de la canción",
+                                            tint = if (!track.lyrics.isNullOrBlank()) GreenAccent else TextSecondary,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+
+                                    // Botón táctil para cambiar o poner carátula (mínimo 48dp)
+                                    IconButton(
+                                        onClick = { onEditArtwork(track) },
+                                        modifier = Modifier
+                                            .size(48.dp)
+                                            .clip(CircleShape)
+                                            .background(DarkSurface.copy(alpha = 0.85f))
+                                            .testTag("full_player_change_artwork")
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.AddPhotoAlternate,
+                                            contentDescription = "Cambiar o asignar carátula en formato WebP",
+                                            tint = GreenAccent,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -571,7 +650,7 @@ fun FullPlayerView(
                     }
 
                     // Botón de Ecualizador: Activo para ambos motores (C++ DSP en Oboe y Media3)
-                    Spacer(modifier = Modifier.width(20.dp))
+                    Spacer(modifier = Modifier.width(16.dp))
                     IconButton(
                         onClick = onOpenEqualizer,
                         modifier = Modifier
@@ -585,7 +664,23 @@ fun FullPlayerView(
                             modifier = Modifier.size(24.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.width(20.dp))
+
+                    // Botón de Letras (Lyrics)
+                    Spacer(modifier = Modifier.width(16.dp))
+                    IconButton(
+                        onClick = { showLyrics = !showLyrics },
+                        modifier = Modifier
+                            .size(48.dp)
+                            .testTag("full_player_lyrics_toggle_btn")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FormatQuote,
+                            contentDescription = if (showLyrics) "Ver carátula" else "Ver letras de la canción",
+                            tint = if (showLyrics) GreenAccent else TextSecondary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
 
                     IconButton(
                         onClick = { onSeekTo((currentPositionMs + 10000L).coerceAtMost(durationMs)) },
@@ -600,6 +695,18 @@ fun FullPlayerView(
                     }
                 }
             }
+        }
+
+        // Diálogo de Edición de Letras
+        if (showEditLyricsDialog) {
+            EditLyricsDialog(
+                track = track,
+                currentLyrics = track.lyrics,
+                onDismiss = { showEditLyricsDialog = false },
+                onSaveLyrics = { newLyrics ->
+                    onUpdateLyrics(track, newLyrics)
+                }
+            )
         }
     }
 }

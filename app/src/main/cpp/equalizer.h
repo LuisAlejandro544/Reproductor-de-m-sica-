@@ -142,6 +142,16 @@ public:
             return;
         }
 
+        // Bypass directo si todas las bandas están en 0dB para no alterar la ganancia unitaria
+        bool isFlat = true;
+        for (int i = 0; i < NUM_EQ_BANDS; ++i) {
+            if (std::abs(mBands[i].gainDb) > 0.05f) {
+                isFlat = false;
+                break;
+            }
+        }
+        if (isFlat) return;
+
         const float invScale = 1.0f / 32768.0f;
         const float scale = 32767.0f;
         int32_t processChannels = std::min<int32_t>(channelCount, 2);
@@ -153,10 +163,12 @@ public:
 
                 // Cascada por las 10 bandas
                 for (int b = 0; b < NUM_EQ_BANDS; ++b) {
-                    sample = mBands[b].processSample(sample, ch);
+                    if (std::abs(mBands[b].gainDb) > 0.05f) {
+                        sample = mBands[b].processSample(sample, ch);
+                    }
                 }
 
-                // Clamping a límites de 16-bit
+                // Clamping a límites de 16-bit con ganancia natural 1.0
                 float outVal = sample * scale;
                 if (outVal > 32767.0f) outVal = 32767.0f;
                 else if (outVal < -32768.0f) outVal = -32768.0f;

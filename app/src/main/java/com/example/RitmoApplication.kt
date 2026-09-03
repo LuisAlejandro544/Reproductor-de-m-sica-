@@ -60,10 +60,18 @@ class RitmoApplication : Application() {
             Timber.e(e, "Error al iniciar Pluto Debugger")
         }
 
-        // 5. Registrar arranque de la aplicación
-        Timber.i("Ritmo Application iniciada con éxito. Diagnóstico en memoria, Pluto, ANR-WatchDog y Timber activos.")
+        // 5. Inicializar Monitor de Rendimiento y FPS (Takt / TinyDancer Engine)
+        try {
+            com.example.debug.FpsMonitor.initialize(this)
+            Timber.i("Monitor de FPS inicializado con éxito.")
+        } catch (e: Exception) {
+            Timber.e(e, "Error al iniciar FpsMonitor")
+        }
 
-        // 6. Verificar si hubo un crash previo para alertar al desarrollador
+        // 6. Registrar arranque de la aplicación
+        Timber.i("Ritmo Application iniciada con éxito. Diagnóstico en memoria, Pluto, FpsMonitor, ANR-WatchDog y Timber activos.")
+
+        // 7. Verificar si hubo un crash previo para alertar al desarrollador
         RitmoCrashHandler.getLastCrashReport(this)?.let { crashReport ->
             DebugLogManager.log(
                 tag = "RitmoCrashHandler",

@@ -19,6 +19,19 @@ object EqualizerDefaults {
         "31 Hz", "62 Hz", "125 Hz", "250 Hz", "500 Hz", "1 kHz", "2 kHz", "4 kHz", "8 kHz", "16 kHz"
     )
 
+    val BAND_NAMES = listOf(
+        "Subgraves",
+        "Graves profundos",
+        "Bajos",
+        "Medios graves",
+        "Cuerpo vocal",
+        "Claridad vocal",
+        "Presencia",
+        "Brillo",
+        "Aire / Detalle",
+        "Ultra agudos"
+    )
+
     val PRESETS = listOf(
         EqualizerPreset("flat", "Plano", List(10) { 0.0f }),
         EqualizerPreset("bass_boost", "Graves", listOf(7.0f, 6.0f, 4.5f, 2.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 2.0f)),

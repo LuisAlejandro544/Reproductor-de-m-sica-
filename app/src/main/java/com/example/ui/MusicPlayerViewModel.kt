@@ -23,8 +23,10 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import com.example.util.LyricsParser
 
 enum class MainNavigationTab {
     SONGS,
@@ -139,6 +141,9 @@ class MusicPlayerViewModel(
     private val _isDebugConsoleOpen = MutableStateFlow(false)
     val isDebugConsoleOpen: StateFlow<Boolean> = _isDebugConsoleOpen.asStateFlow()
 
+    private val _isDatabaseInspectorOpen = MutableStateFlow(false)
+    val isDatabaseInspectorOpen: StateFlow<Boolean> = _isDatabaseInspectorOpen.asStateFlow()
+
     private val _rawErrorDialog = MutableStateFlow<String?>(null)
     val rawErrorDialog: StateFlow<String?> = _rawErrorDialog.asStateFlow()
 
@@ -146,10 +151,12 @@ class MusicPlayerViewModel(
     val snackbarMessage: StateFlow<String?> = _snackbarMessage.asStateFlow()
 
     init {
-        // Asegurar que toda pista en la biblioteca cuente con carátula (generación procedural si no tenía)
+        // Asegurar que toda pista en la biblioteca cuente con carátula y letras si existen en disco,
+        // y generar automáticamente playlists para artistas con 3 o más canciones.
         viewModelScope.launch(Dispatchers.IO) {
             allTracksFlow.collect { tracks ->
                 for (track in tracks) {
+                    // Carátula procedural si no tenía
                     if (track.artworkPath.isNullOrBlank()) {
                         try {
                             val proceduralArt = ArtworkProcessor.generateProceduralArtworkLosslessWebP(
@@ -167,6 +174,27 @@ class MusicPlayerViewModel(
                         } catch (_: Exception) {
                         }
                     }
+
+                    // Lectura automática de letras si existe archivo complementario .lrc / .txt junto a la canción
+                    if (track.lyrics.isNullOrBlank()) {
+                        try {
+                            val companionLyrics = LyricsParser.readCompanionLyricsFile(track.filePath)
+                            if (!companionLyrics.isNullOrBlank()) {
+                                trackRepository.updateLyrics(track.id, companionLyrics)
+                                val trackWithLyrics = track.copy(lyrics = companionLyrics)
+                                AppStorageManager.saveTrackMetadataJson(getApplication(), trackWithLyrics)
+                                if (playerManager.currentTrack.value?.id == track.id) {
+                                    playerManager.updateCurrentTrack(trackWithLyrics)
+                                }
+                            }
+                        } catch (_: Exception) {
+                        }
+                    }
+                }
+
+                // Generación totalmente automática si se detectan 3 canciones como mínimo de un mismo artista
+                if (tracks.isNotEmpty()) {
+                    checkAndAutoGenerateArtistPlaylists(tracks)
                 }
             }
         }
@@ -178,6 +206,14 @@ class MusicPlayerViewModel(
 
     fun closeDebugConsole() {
         _isDebugConsoleOpen.value = false
+    }
+
+    fun openDatabaseInspector() {
+        _isDatabaseInspectorOpen.value = true
+    }
+
+    fun closeDatabaseInspector() {
+        _isDatabaseInspectorOpen.value = false
     }
 
     fun openTrackEditor(track: TrackEntity) {
@@ -347,6 +383,86 @@ class MusicPlayerViewModel(
             } finally {
                 _isUpdatingArtwork.value = false
             }
+        }
+    }
+
+    /**
+     * Guarda o actualiza las letras de una canción (formato sincronizado LRC o texto plano).
+     * Sincroniza la base de datos Room, el JSON modular y escribe un archivo .lrc complementario
+     * en el almacenamiento para máxima compatibilidad offline.
+     */
+    fun updateTrackLyrics(track: TrackEntity, lyrics: String?) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val cleanedLyrics = lyrics?.trim()?.ifEmpty { null }
+                trackRepository.updateLyrics(track.id, cleanedLyrics)
+                val updatedTrack = track.copy(lyrics = cleanedLyrics)
+                AppStorageManager.saveTrackMetadataJson(getApplication(), updatedTrack)
+
+                if (playerManager.currentTrack.value?.id == track.id) {
+                    playerManager.updateCurrentTrack(updatedTrack)
+                }
+
+                if (!cleanedLyrics.isNullOrBlank()) {
+                    LyricsParser.writeCompanionLrcFile(track.filePath, cleanedLyrics)
+                }
+
+                _snackbarMessage.value = if (cleanedLyrics.isNullOrBlank()) {
+                    "Letras eliminadas"
+                } else {
+                    "Letras sincronizadas correctamente"
+                }
+            } catch (e: Exception) {
+                _snackbarMessage.value = "Error al guardar letras: ${e.localizedMessage ?: "Desconocido"}"
+            }
+        }
+    }
+
+    /**
+     * Algoritmo de detección y generación totalmente automática:
+     * Si se detectan 3 canciones como mínimo de un mismo artista, genera automáticamente
+     * una playlist con todas las pistas de dicho artista en la biblioteca.
+     */
+    private suspend fun checkAndAutoGenerateArtistPlaylists(tracks: List<TrackEntity>) {
+        try {
+            val tracksByArtist = tracks.groupBy { it.artist.trim() }
+                .filter { (artist, artistTracks) ->
+                    artist.isNotBlank() &&
+                    !artist.equals("Desconocido", ignoreCase = true) &&
+                    !artist.equals("Artista Desconocido", ignoreCase = true) &&
+                    !artist.equals("Unknown Artist", ignoreCase = true) &&
+                    !artist.equals("<unknown>", ignoreCase = true) &&
+                    artistTracks.size >= 3
+                }
+
+            if (tracksByArtist.isEmpty()) return
+
+            val currentPlaylists = trackRepository.allPlaylists.first()
+
+            for ((artist, artistTracks) in tracksByArtist) {
+                val playlistName = artist
+                val autoDescription = "Playlist automática de $artist (3+ canciones)"
+
+                val existing = currentPlaylists.find {
+                    it.name.equals(playlistName, ignoreCase = true) ||
+                    it.description.contains("3+ canciones de $artist") ||
+                    it.description.contains("Playlist automática de $artist")
+                }
+
+                val playlistId = if (existing == null) {
+                    trackRepository.createPlaylist(name = playlistName, description = autoDescription)
+                } else {
+                    existing.id
+                }
+
+                val currentTracksInPlaylist = trackRepository.getTracksForPlaylist(playlistId).first().map { it.id }.toSet()
+                for (trk in artistTracks) {
+                    if (trk.id !in currentTracksInPlaylist) {
+                        trackRepository.addTrackToPlaylist(playlistId, trk.id)
+                    }
+                }
+            }
+        } catch (_: Exception) {
         }
     }
 

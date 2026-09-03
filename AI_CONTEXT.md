@@ -22,6 +22,13 @@ Este archivo proporciona el contexto técnico completo, restricciones de diseño
   - Vistas UI (`MainMusicScreen`, `SettingsScreen`) modularizadas en submódulos limpios bajo `ui.main` y `ui.settings`.
   - Crate Rust `ritmo_rust` dividido en submódulos especializados (`models`, `id3`, `vorbis`, `flac`, `ape`, `mp4`, `writer`, `jni_bridge`).
 - **Reproducción en Segundo Plano:** Implementada con `RitmoMediaSessionService` para control continuo en notificaciones, pantalla de bloqueo y accesorios Bluetooth.
+- **Visualizador y Editor de Letras Sincronizadas (LRC y Texto):**
+  - `LyricsParser`: Analizador de marcas de tiempo estándar y centésimas `[mm:ss.xx]`, seguimiento de estrofa activa y persistencia de archivos complementarios `.lrc` / `.txt` en disco.
+  - `LyricsView` y `EditLyricsDialog`: Autodesplazamiento sincronizado, interacción de salto temporal (*seek*) al pulsar cualquier línea y diálogo táctil de 48dp para ingresar o pegar letras.
+  - Integración fluida en `FullPlayerView` con switcher animado entre carátula de alta resolución y letras.
+- **Generación Totalmente Automática de Playlists por Artista (3+ Canciones):**
+  - Algoritmo en `MusicPlayerViewModel` que monitorea la biblioteca y genera automáticamente playlists dedicadas para artistas con 3 o más pistas.
+  - Distintivo visual en `PlaylistListView` con badge `ARTISTA` e icono personalizado.
 
 ---
 

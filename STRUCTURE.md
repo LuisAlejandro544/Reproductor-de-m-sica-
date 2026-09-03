@@ -125,10 +125,12 @@ Este documento detalla la arquitectura de software, la organización de director
 │           │   │   ├── components/
 │           │   │   │   ├── AlbumArtView.kt
 │           │   │   │   ├── DebugConsoleModal.kt # Consola táctil con logs crudos, copia individual (48dp) y visualizador de crashes
+│           │   │   │   ├── EditLyricsDialog.kt # Editor táctil de letras sincronizadas LRC y texto plano
 │           │   │   │   ├── EditTrackMetadataDialog.kt # Diálogo de edición de tags con Rust
 │           │   │   │   ├── EngineSelectDialog.kt
 │           │   │   │   ├── EqualizerModal.kt
-│           │   │   │   ├── FullPlayerView.kt
+│           │   │   │   ├── FullPlayerView.kt # Reproductor completo con switcher carátula/lyrics
+│           │   │   │   ├── LyricsView.kt     # Visualizador de letras con autodesplazamiento y seek interactivo
 │           │   │   │   ├── MiniPlayer.kt
 │           │   │   │   ├── RawErrorDialog.kt # Alerta emergente ante errores numéricos crudos
 │           │   │   │   └── TrackListItem.kt
@@ -137,6 +139,7 @@ Este documento detalla la arquitectura de software, la organización de director
 │           │       ├── AppStorageManager.kt # Gestión de carpetas music/, covers/, artists/
 │           │       ├── ArtworkProcessor.kt  # Compresión WebP Lossless y generación procedural de carátulas
 │           │       ├── FormatUtils.kt
+│           │       ├── LyricsParser.kt      # Parser de marcas de tiempo LRC [mm:ss.xx] y archivos complementarios
 │           │       ├── MusicImporter.kt     # Importador con RustAudioEngine y fallback de arte procedural
 │           │       └── RustAudioEngine.kt   # Puente Kotlin hacia los métodos JNI de Rust
 │           └── res/

@@ -44,6 +44,16 @@ Este documento define la hoja de ruta estratégica para el desarrollo de **Ritmo
   - [x] Compresión WebP Lossless en segundo plano sin congelar la UI.
   - [x] Generación procedural automática de carátulas para pistas sin arte embebido (`ArtworkProcessor.generateProceduralArtworkLosslessWebP`).
   - [x] Selector visual Photo Picker sin permisos invasivos.
+- [x] **Visualizador y Editor de Letras Sincronizadas (LRC / Plain Text):**
+  - [x] Parser de marcas de tiempo LRC `[mm:ss.xx]` con detección de estrofa activa en `LyricsParser.kt`.
+  - [x] Componente `LyricsView` con autodesplazamiento animado y soporte de salto temporal (*seek*) al pulsar cualquier verso.
+  - [x] Transición animada en `FullPlayerView` entre carátula y visualizador de letras con botón de 48dp.
+  - [x] Editor táctil `EditLyricsDialog` para añadir, modificar o pegar letras desde el portapapeles.
+  - [x] Sincronización automática con archivos complementarios `.lrc` / `.txt` en almacenamiento local y persistencia en Room.
+- [x] **Listas de Reproducción Inteligentes y Generación Automática por Artista:**
+  - [x] Detección automática en segundo plano de artistas con 3 o más canciones en la biblioteca musical.
+  - [x] Creación automática de playlists dedicadas por artista con sincronización de nuevas canciones.
+  - [x] Identificación distintiva en la interfaz con badge `ARTISTA` e icono personalizado en `PlaylistListView`.
 - [x] **Flujo de CI/CD en GitHub Actions:**
   - [x] Descarga y precalentamiento de dependencias de Rust (`cargo fetch`).
   - [x] Compilación limpia y firma automatizada del APK Debug.

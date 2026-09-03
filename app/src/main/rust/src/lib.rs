@@ -50,11 +50,18 @@ pub fn parse_audio_file(path: &str, extract_artwork: bool) -> (RustAudioMetadata
         .map(|s| s.to_lowercase())
         .unwrap_or_default();
 
+    let mut unused_art: Option<Vec<u8>> = None;
+    let art_ref = if extract_artwork {
+        &mut artwork
+    } else {
+        &mut unused_art
+    };
+
     // Detección por extensión y números mágicos
     match ext.as_str() {
         "flac" => {
             meta.format_name = "FLAC (Lossless)".to_string();
-            flac::parse_flac(&mut file, &mut meta, if extract_artwork { &mut artwork } else { &mut None });
+            flac::parse_flac(&mut file, &mut meta, art_ref);
         }
         "ogg" | "opus" => {
             meta.format_name = if ext == "opus" { "Opus (Ogg)".to_string() } else { "Vorbis (Ogg)".to_string() };
@@ -62,7 +69,7 @@ pub fn parse_audio_file(path: &str, extract_artwork: bool) -> (RustAudioMetadata
         }
         "m4a" | "aac" | "mp4" => {
             meta.format_name = "M4A / AAC (MPEG-4)".to_string();
-            mp4::parse_mp4_atoms(&mut file, file_len, &mut meta, if extract_artwork { &mut artwork } else { &mut None });
+            mp4::parse_mp4_atoms(&mut file, file_len, &mut meta, art_ref);
         }
         "ape" => {
             meta.format_name = "Monkey's Audio (APE)".to_string();
@@ -70,11 +77,11 @@ pub fn parse_audio_file(path: &str, extract_artwork: bool) -> (RustAudioMetadata
         }
         "wav" => {
             meta.format_name = "WAV (PCM)".to_string();
-            id3::parse_id3v2(&mut file, &mut meta, if extract_artwork { &mut artwork } else { &mut None });
+            id3::parse_id3v2(&mut file, &mut meta, art_ref);
         }
         "mp3" | _ => {
             meta.format_name = "MPEG Audio (MP3)".to_string();
-            id3::parse_id3v2(&mut file, &mut meta, if extract_artwork { &mut artwork } else { &mut None });
+            id3::parse_id3v2(&mut file, &mut meta, art_ref);
             if file_len > 128 {
                 id3::parse_id3v1(&mut file, file_len, &mut meta);
             }

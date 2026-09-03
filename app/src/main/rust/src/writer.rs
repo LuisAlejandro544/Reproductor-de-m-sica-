@@ -2,7 +2,7 @@
 
 use std::fs::OpenOptions;
 use std::io::{Read, Seek, SeekFrom, Write};
-use crate::id3::{synchsafe_to_u32, u32_to_synchsafe};
+use crate::id3::synchsafe_to_u32;
 
 /// Actualiza el título y el artista en un archivo de audio directamente en Rust.
 /// Modifica in-place los frames TIT2 y TPE1 en ID3v2, así como los campos en ID3v1 si existen.
