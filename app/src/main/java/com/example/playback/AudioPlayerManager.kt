@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 
 enum class PlaybackRepeatMode {
@@ -39,6 +40,7 @@ class AudioPlayerManager(private val context: Context) {
 
     private val playerScope = CoroutineScope(Dispatchers.Main + Job())
     private var progressJob: Job? = null
+    private var playJob: Job? = null
 
     private val exoPlayer: ExoPlayer = ExoPlayer.Builder(context).build()
 
@@ -140,23 +142,32 @@ class AudioPlayerManager(private val context: Context) {
 
         // Reanudar en el nuevo motor si había pista activa
         if (track != null) {
-            if (newEngine == AudioEngineType.OBOE_CPP && OboeAudioBridge.isNativeReady()) {
-                OboeAudioBridge.nativeInit()
-                val loaded = OboeAudioBridge.nativeLoadFile(track.filePath)
-                if (loaded) {
-                    OboeAudioBridge.nativeSeekTo(position)
-                    if (wasPlaying) {
-                        OboeAudioBridge.nativePlay()
-                        _isPlaying.value = true
-                        startProgressTracker()
+            playJob?.cancel()
+            playJob = playerScope.launch(Dispatchers.IO) {
+                if (newEngine == AudioEngineType.OBOE_CPP && OboeAudioBridge.isNativeReady()) {
+                    OboeAudioBridge.nativeInit()
+                    val loaded = OboeAudioBridge.nativeLoadFile(track.filePath)
+                    if (loaded) {
+                        OboeAudioBridge.nativeSeekTo(position)
+                        if (wasPlaying) {
+                            OboeAudioBridge.nativePlay()
+                            withContext(Dispatchers.Main) {
+                                _isPlaying.value = true
+                                startProgressTracker()
+                            }
+                        }
+                    } else {
+                        // Fallback a ExoPlayer si el decodificador nativo no pudo abrir el archivo
+                        withContext(Dispatchers.Main) {
+                            _activeEngine.value = AudioEngineType.EXOPLAYER
+                            playTrackWithExoPlayer(track, position, wasPlaying)
+                        }
                     }
                 } else {
-                    // Fallback a ExoPlayer si el decodificador nativo no pudo abrir el archivo
-                    _activeEngine.value = AudioEngineType.EXOPLAYER
-                    playTrackWithExoPlayer(track, position, wasPlaying)
+                    withContext(Dispatchers.Main) {
+                        playTrackWithExoPlayer(track, position, wasPlaying)
+                    }
                 }
-            } else {
-                playTrackWithExoPlayer(track, position, wasPlaying)
             }
         }
     }
@@ -183,29 +194,41 @@ class AudioPlayerManager(private val context: Context) {
         _currentTrack.value = track
         _duration.value = if (track.durationMs > 0) track.durationMs else 0L
 
-        if (_activeEngine.value == AudioEngineType.OBOE_CPP && OboeAudioBridge.isNativeReady()) {
-            exoPlayer.pause()
-            OboeAudioBridge.nativeInit()
-            val loaded = OboeAudioBridge.nativeLoadFile(track.filePath)
-            if (loaded) {
-                OboeAudioBridge.nativePlay()
-                _isPlaying.value = true
-                val oboeDur = OboeAudioBridge.nativeGetDuration()
-                if (oboeDur > 0) {
-                    _duration.value = oboeDur
+        playJob?.cancel()
+        playJob = playerScope.launch(Dispatchers.IO) {
+            if (_activeEngine.value == AudioEngineType.OBOE_CPP && OboeAudioBridge.isNativeReady()) {
+                withContext(Dispatchers.Main) {
+                    exoPlayer.pause()
                 }
-                startProgressTracker()
-                return
-            } else {
-                Log.w(TAG, "Oboe engine failed to load track, falling back to ExoPlayer")
+                OboeAudioBridge.nativeInit()
+                val loaded = OboeAudioBridge.nativeLoadFile(track.filePath)
+                if (loaded) {
+                    OboeAudioBridge.nativePlay()
+                    withContext(Dispatchers.Main) {
+                        _isPlaying.value = true
+                        val oboeDur = OboeAudioBridge.nativeGetDuration()
+                        if (oboeDur > 0) {
+                            _duration.value = oboeDur
+                        }
+                        startProgressTracker()
+                    }
+                    return@launch
+                } else {
+                    Log.w(TAG, "Oboe engine failed to load track, falling back to ExoPlayer")
+                    withContext(Dispatchers.Main) {
+                        _activeEngine.value = AudioEngineType.EXOPLAYER
+                    }
+                }
+            }
+
+            // ExoPlayer
+            withContext(Dispatchers.Main) {
+                if (OboeAudioBridge.isNativeReady()) {
+                    OboeAudioBridge.nativePause()
+                }
+                playTrackWithExoPlayer(track, 0L, autoPlay = true)
             }
         }
-
-        // ExoPlayer
-        if (OboeAudioBridge.isNativeReady()) {
-            OboeAudioBridge.nativePause()
-        }
-        playTrackWithExoPlayer(track, 0L, autoPlay = true)
     }
 
     fun playPause() {
@@ -396,6 +419,7 @@ class AudioPlayerManager(private val context: Context) {
     }
 
     fun release() {
+        playJob?.cancel()
         stopProgressTracker()
         exoPlayer.release()
         if (OboeAudioBridge.isNativeReady()) {

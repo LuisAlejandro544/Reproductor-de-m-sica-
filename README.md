@@ -26,6 +26,8 @@ La aplicación está concebida para su distribución independiente en tiendas de
    - **Mini Reproductor:** Barra flotante acoplada con carátula, título, artista, progreso en tiempo real y controles rápidos.
    - **Reproductor Completo:** Despliegue dinámico con carátula a gran escala, barra deslizadora con timestamps, salto de 10s, modo aleatorio (*shuffle*) y modos de repetición.
    - **Buscador en Tiempo Real:** Filtro instantáneo por nombre de canción o artista.
+   - **Pantalla Independiente de Configuración:** Menú completo de ajustes para conmutar el motor de audio en caliente (ExoPlayer vs Oboe C++), auditar los módulos nativos integrados, ver el conteo de canciones locales e importar o vaciar la biblioteca con confirmación de seguridad.
+   - **Flujo de Primer Inicio Autónomo:** El diálogo de selección de motor se presenta únicamente en la primera ejecución de la aplicación; en arranques sucesivos, la app arranca de forma inmediata con el motor configurado, pudiendo alternarse en cualquier momento desde los ajustes.
 
 ---
 
@@ -59,6 +61,9 @@ La aplicación está concebida para su distribución independiente en tiendas de
 │   │   │   ├── data/            # Entidades Room y DAOs
 │   │   │   ├── playback/        # AudioPlayerManager (ExoPlayer y Oboe bridge)
 │   │   │   ├── ui/              # Pantallas Compose y ViewModel
+│   │   │   │   ├── MainMusicScreen.kt # Pantalla principal con lista y buscador
+│   │   │   │   ├── SettingsScreen.kt  # Pantalla de configuración independiente y selección de motor
+│   │   │   │   ├── MusicPlayerViewModel.kt # ViewModel central y estado de reproducción
 │   │   │   │   └── components/  # MiniPlayer, FullPlayerView, TrackListItem
 │   │   │   └── util/            # Extractor de carátulas y metadatos
 │   │   └── res/                 # Iconos, temas, cadenas en strings.xml

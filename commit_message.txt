@@ -1,0 +1,15 @@
+fix(audio): corrección del motor Oboe y adición de workflow para commit_message
+
+- Configurado Oboe con Usage::Media, ContentType::Music y SampleRateConversionQuality::Medium para compatibilidad total con 44.1 kHz y múltiples frecuencias de muestreo.
+- Añadidos mecanismos de fallback automático en C++ a PerformanceMode::None y OpenSL ES si AAudio o baja latencia fallan.
+- Corregida la verificación de estados en openStream(), play(), pause() y stop() evitando errores al reanudar reproducciones pausadas o detenidas.
+- Mejorada la gestión de canales de audio (soporte de mono a estéreo y formatos variables sin desbordamiento de búfer).
+- Agregada protección contra ciclos infinitos en el decodificador de MediaCodec ante streams sin flag EOS.
+- Migrada la carga y decodificación de pistas en AudioPlayerManager a Dispatchers.IO con soporte de cancelación para evitar bloqueos en la interfaz de usuario.
+- Sincronizado el estado de activeEngine hacia ExoPlayer en caso de fallo en el motor nativo.
+- Creado el workflow de GitHub Actions 'Override Commit Message' para sincronizar el mensaje del último commit con commit_message.txt.
+- Eliminada la transparencia en FullPlayerView sustituyendo el gradiente semitransparente por un contenedor Surface opaco y gradiente sólido, evitando que se trasluzca la pantalla principal al expandir el reproductor.
+- Solucionado el estiramiento vertical del botón 'Importar' en la barra superior mediante maxLines=1, softWrap=false, peso flexible en el título y espaciado optimizado para dispositivos móviles.
+- Creada la pantalla independiente de Configuración General ('SettingsScreen.kt') con Material Design 3, soporte de BackHandler nativo, conmutador interactivo de motor de audio (ExoPlayer vs Oboe C++), diagnóstico de arquitectura nativa (C++ JNI y Rust C-ABI), contador y opciones de gestión de biblioteca local (importación y vaciado seguro).
+- Implementada la persistencia del aviso de selección de motor de audio en el primer arranque ('KEY_ENGINE_PROMPTED'); el diálogo se muestra únicamente en la primera apertura y posterior a la elección el motor se administra desde el nuevo menú de ajustes o pulsando el chip del motor en la barra superior.
+- Integrado el botón de acceso a Configuración en la cabecera principal junto al chip de motor y botón de importación, manteniendo un diseño táctil ergonómico optimizado para smartphones.

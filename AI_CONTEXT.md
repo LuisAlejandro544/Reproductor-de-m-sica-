@@ -9,6 +9,7 @@ Este archivo proporciona todo el contexto técnico, restricciones de diseño, pe
 - **Naturaleza:** Reproductor de audio local para Android con enfoque estricto en privacidad, alto rendimiento y fidelidad sonora.
 - **Filosofía:** El usuario tiene soberanía total sobre sus archivos. La app **no** escanea de fondo ni solicita permisos abusivos; solo maneja los archivos que el usuario importa selectivamente.
 - **Doble Motor:** Soporta cambio en tiempo real entre el motor estándar de Android (**ExoPlayer / Media3**) y un motor nativo de ultra baja latencia (**Oboe C++ / AAudio**), con arquitectura preparada para **Rust**.
+- **Gestión de Configuración:** El diálogo inicial de motor solo se muestra en el primer inicio tras la instalación. Una vez definido, el usuario administra el motor y la biblioteca a través de la pantalla independiente de Configuración (`SettingsScreen.kt`) o mediante el chip interactivo de la cabecera.
 
 ---
 

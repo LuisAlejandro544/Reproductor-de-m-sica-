@@ -102,28 +102,32 @@ fun FullPlayerView(
         if (isDraggingSlider) sliderDragPosition else (currentPositionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
     } else 0f
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        GreenDark.copy(alpha = 0.35f),
-                        DarkSurface,
-                        DarkBackground
-                    )
-                )
-            )
-            .statusBarsPadding()
-            .navigationBarsPadding()
+    Surface(
+        modifier = modifier.fillMaxSize(),
+        color = DarkBackground
     ) {
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color(0xFF142C1E),
+                            DarkSurface,
+                            DarkBackground
+                        )
+                    )
+                )
+                .statusBarsPadding()
+                .navigationBarsPadding()
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
             // Header: Collapse Button + Context Title + Menu
             Row(
                 modifier = Modifier
@@ -417,4 +421,5 @@ fun FullPlayerView(
             }
         }
     }
+}
 }

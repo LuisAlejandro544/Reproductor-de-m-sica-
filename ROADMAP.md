@@ -16,30 +16,44 @@ Este documento define la hoja de ruta estratégica para el desarrollo de **Ritmo
   - Copia y almacenamiento local aislado en el almacenamiento de la app.
   - Extracción y almacenamiento en caché de miniaturas y carátulas integradas.
   - Persistencia de metadatos (título, artista, álbum, duración, ruta) mediante **Room Database**.
-- [x] **Doble Motor de Audio Seleccionable:**
-  - Selector al inicio de la aplicación y botón de conmutación en caliente.
+- [x] **Doble Motor de Audio Seleccionable y Ajustes Generales:**
+  - Selector exclusivo en el primer inicio con persistencia en SharedPreferences (`KEY_ENGINE_PROMPTED`).
   - Motor estándar con ExoPlayer / Media3.
   - Motor nativo C++ con Google Oboe (AAudio/OpenSL ES) para baja latencia.
+  - Pantalla independiente de Configuración General (`SettingsScreen`) para alternar el motor de audio en caliente, consultar el diagnóstico de módulos nativos y gestionar la biblioteca.
 - [x] **Preparación de Infraestructura Nativa:**
   - Integración de CMake y Android NDK para compilación de C++.
   - Estructura y enlace de biblioteca nativa en Rust para futuras ampliaciones seguras.
 
 ---
 
-## 🚀 Fase 2 — Procesamiento Digital de Señales (DSP) en C++
+## 🎧 Fase 2 — Exclusividades por Motor de Audio y DSP Avanzado
 
-- [ ] **Ecualizador Gráfico y Paramétrico de 10 Bandas:**
-  - Procesamiento matemático de audio PCM en tiempo real en el motor Oboe.
-  - Presets audiófilos (Rock, Pop, Clásica, Jazz, Refuerzo Vocal, Electrónica).
-  - Control de ganancia por banda con visualización de curva de respuesta en Compose.
-- [ ] **Efectos de Audio de Baja Latencia:**
-  - Refuerzo de graves dinámico (*Bass Boost*).
-  - Virtualizador espacial estéreo (*Stereo Widener*).
-  - Normalización de volumen inteligente basada en ReplayGain / EBU R128 para evitar variaciones bruscas entre temas.
-- [ ] **Reproducción Continua Sin Pausas (*Gapless Playback*):**
-  - Pre-buffering de la siguiente pista en la cola de reproducción en el hilo nativo de C++ para eliminar silencios entre canciones consecutivas.
-- [ ] **Crossfade Configurable:**
-  - Transición suave con fundido cruzado regulable de 1 a 10 segundos entre pistas.
+El objetivo de esta fase es exprimir al máximo el potencial y la naturaleza única de cada motor de audio integrado, ofreciendo funciones avanzadas de forma completamente gratuita y sin dependencias de pago:
+
+- [ ] **Funciones Exclusivas del Motor Nativo (Oboe C++):**
+  - **Audio 8D / Audio Espacial 360° Gratuito:**
+    - Procesamiento matemático en tiempo real a nivel de muestra PCM (*sample-by-sample*).
+    - Paneo circular continuo L/R con velocidad y radio de giro ajustables.
+    - Simulación de retardo interaural (*Interaural Time Delay - ITD*) y atenuación de cabeza (*head-shadowing filter*).
+    - Micro-reverberación de sala para sensación tridimensional real sin costo ni anuncios.
+  - **Control de Tono y Velocidad sin Distorsión (*Pitch & Speed Shift*):**
+    - Modulación precisa de semitonos musicales y afinación alternativa (ej: 432 Hz).
+  - **Ecualizador Paramétrico y Gráfico de 10 Bandas:**
+    - Filtros biquad IIR directos de punto flotante en C++ con refuerzo de graves profundo (*Bass Boost*) y visualizador de curvas en Compose.
+  - **Modo Direct-to-DAC / Bit-Perfect:**
+    - Acceso directo de ultra baja latencia para audiófilos utilizando DACs USB y auriculares de monitoreo.
+
+- [ ] **Funciones Exclusivas del Motor Estándar (ExoPlayer / Media3):**
+  - **Crossfade Inteligente:**
+    - Transición fluida con fundido cruzado regulable (1 a 10 segundos) entre canciones.
+  - **Gapless Playback Universal:**
+    - Reproducción continua sin micro-pausas entre pistas de álbumes en vivo y sinfonías.
+  - **Eficiencia Energética Máxima:**
+    - Aprovechamiento del decodificador multimedia del chipset del dispositivo para mínimo consumo de batería en reproducción prolongada con pantalla apagada.
+
+- [ ] **Exploración de Nuevos Motores de Audio Futuros:**
+  - Arquitectura desacoplada y modular pensada para poder incorporar en el futuro motores alternativos adicionales (por ejemplo: motor 100% Rust con Symphonia/Rodio, backend OpenSL ES puro para dispositivos antiguos o motores experimentales de síntesis sonora).
 
 ---
 

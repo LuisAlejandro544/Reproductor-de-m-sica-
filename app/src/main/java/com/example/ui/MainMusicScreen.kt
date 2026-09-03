@@ -6,7 +6,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -16,6 +18,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -35,6 +38,7 @@ import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -61,6 +65,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -93,6 +98,7 @@ fun MainMusicScreen(
     val isShuffle by viewModel.isShuffle.collectAsStateWithLifecycle()
     val repeatMode by viewModel.repeatMode.collectAsStateWithLifecycle()
     val isPlayerExpanded by viewModel.isPlayerExpanded.collectAsStateWithLifecycle()
+    val isSettingsOpen by viewModel.isSettingsOpen.collectAsStateWithLifecycle()
     val isImporting by viewModel.isImporting.collectAsStateWithLifecycle()
     val snackbarMessage by viewModel.snackbarMessage.collectAsStateWithLifecycle()
     val activeEngine by viewModel.activeEngine.collectAsStateWithLifecycle()
@@ -142,11 +148,14 @@ fun MainMusicScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 14.dp),
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        modifier = Modifier.weight(1f, fill = false),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Box(
                             modifier = Modifier
                                 .size(38.dp)
@@ -161,26 +170,35 @@ fun MainMusicScreen(
                                 modifier = Modifier.size(22.dp)
                             )
                         }
-                        Spacer(modifier = Modifier.width(12.dp))
+                        Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
                                 text = "Ritmo",
                                 style = MaterialTheme.typography.titleLarge.copy(
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 22.sp
+                                    fontSize = 20.sp
                                 ),
-                                color = TextPrimary
+                                color = TextPrimary,
+                                maxLines = 1
                             )
                             Text(
-                                text = if (tracks.isEmpty()) "Reproductor local" else "${tracks.size} canciones importadas",
+                                text = when {
+                                    tracks.isEmpty() -> "Reproductor local"
+                                    tracks.size == 1 -> "1 canción"
+                                    else -> "${tracks.size} canciones"
+                                },
                                 style = MaterialTheme.typography.bodySmall,
-                                color = TextSecondary
+                                color = TextSecondary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
 
+                    Spacer(modifier = Modifier.width(8.dp))
+
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         // Engine Switcher Chip
@@ -189,11 +207,11 @@ fun MainMusicScreen(
                             shape = RoundedCornerShape(18.dp),
                             modifier = Modifier
                                 .clip(RoundedCornerShape(18.dp))
-                                .clickable { viewModel.setShowEngineDialog(true) }
+                                .clickable { viewModel.openSettings() }
                                 .testTag("switch_audio_engine_button")
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 7.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(5.dp)
                             ) {
@@ -207,7 +225,9 @@ fun MainMusicScreen(
                                     text = activeEngine.shortName,
                                     color = Color.White,
                                     fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                             }
                         }
@@ -220,19 +240,42 @@ fun MainMusicScreen(
                                 contentColor = DarkBackground
                             ),
                             shape = RoundedCornerShape(20.dp),
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-                            modifier = Modifier.testTag("import_music_button")
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                            modifier = Modifier
+                                .defaultMinSize(minHeight = 36.dp)
+                                .testTag("import_music_button")
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = "Importar",
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(
+                                    text = "Importar",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
+                        }
+
+                        // Settings Button
+                        IconButton(
+                            onClick = { viewModel.openSettings() },
+                            modifier = Modifier
+                                .size(38.dp)
+                                .testTag("settings_button")
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Importar",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "Configuración",
+                                tint = TextSecondary,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                     }
@@ -452,7 +495,10 @@ fun MainMusicScreen(
             AnimatedVisibility(
                 visible = isPlayerExpanded && currentTrack != null,
                 enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(DarkBackground)
             ) {
                 currentTrack?.let { track ->
                     FullPlayerView(
@@ -473,18 +519,36 @@ fun MainMusicScreen(
                     )
                 }
             }
+            // Settings Screen (Independent full screen with smooth animation)
+            AnimatedVisibility(
+                visible = isSettingsOpen,
+                enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
+                exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(DarkBackground)
+            ) {
+                SettingsScreen(
+                    activeEngine = activeEngine,
+                    tracksCount = tracks.size,
+                    onEngineChanged = { viewModel.setAudioEngine(it) },
+                    onImportRequested = { filePickerLauncher.launch(arrayOf("audio/*")) },
+                    onClearLibraryRequested = { viewModel.clearAllTracks() },
+                    onNavigateBack = { viewModel.closeSettings() }
+                )
+            }
         }
     }
 
-    // Engine Selection Dialog (Shown on first launch or when tapping engine chip)
+    // Engine Selection Dialog (Shown ONLY on first launch)
     if (showEngineDialog) {
         EngineSelectDialog(
             currentEngine = activeEngine,
             onEngineSelected = { newEngine ->
-                viewModel.setAudioEngine(newEngine)
+                viewModel.selectInitialEngine(newEngine)
             },
             onDismissRequest = {
-                viewModel.setShowEngineDialog(false)
+                viewModel.dismissInitialEnginePrompt()
             }
         )
     }

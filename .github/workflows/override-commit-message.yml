@@ -1,0 +1,53 @@
+name: Override Commit Message
+
+on:
+  push:
+    branches:
+      - main
+      - master
+
+permissions:
+  contents: write
+
+jobs:
+  override-commit:
+    name: Override Last Commit Message
+    # Evita bucles infinitos si el commit fue hecho por el bot de GitHub Actions
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Actualizar mensaje del commit desde commit_message.txt
+        run: |
+          echo "=== Verificando archivo commit_message.txt ==="
+          if [ -s commit_message.txt ]; then
+            NEW_MESSAGE=$(cat commit_message.txt)
+            CURRENT_MESSAGE=$(git log -1 --pretty=%B)
+
+            echo "Mensaje actual:"
+            echo "$CURRENT_MESSAGE"
+            echo "----------------------------------------"
+            echo "Nuevo mensaje deseado:"
+            echo "$NEW_MESSAGE"
+            echo "----------------------------------------"
+
+            # Solo reescribe si el mensaje del commit es diferente al deseado
+            if [ "$CURRENT_MESSAGE" != "$NEW_MESSAGE" ]; then
+              echo "Reescribiendo mensaje del commit..."
+              git config user.name "github-actions[bot]"
+              git config user.email "github-actions[bot]@users.noreply.github.com"
+
+              git commit --amend -m "$NEW_MESSAGE"
+              git push --force-with-lease origin ${{ github.ref_name }}
+              echo "Commit reescrito exitosamente."
+            else
+              echo "El mensaje del commit ya coincide con commit_message.txt. No se requieren cambios."
+            fi
+          else
+            echo "commit_message.txt no existe o está vacío. No se realizaron cambios."
+          fi

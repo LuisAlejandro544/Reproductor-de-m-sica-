@@ -65,6 +65,9 @@ class MusicPlayerViewModel(
     private val _showEngineDialog = MutableStateFlow(!playerManager.hasPromptedEngineSelection())
     val showEngineDialog: StateFlow<Boolean> = _showEngineDialog.asStateFlow()
 
+    private val _isSettingsOpen = MutableStateFlow(false)
+    val isSettingsOpen: StateFlow<Boolean> = _isSettingsOpen.asStateFlow()
+
     private val _isPlayerExpanded = MutableStateFlow(false)
     val isPlayerExpanded: StateFlow<Boolean> = _isPlayerExpanded.asStateFlow()
 
@@ -82,8 +85,28 @@ class MusicPlayerViewModel(
         _isPlayerExpanded.value = expanded
     }
 
+    fun openSettings() {
+        _isSettingsOpen.value = true
+    }
+
+    fun closeSettings() {
+        _isSettingsOpen.value = false
+    }
+
     fun setShowEngineDialog(show: Boolean) {
         _showEngineDialog.value = show
+    }
+
+    fun selectInitialEngine(engine: AudioEngineType) {
+        playerManager.setAudioEngine(engine)
+        playerManager.markEngineSelectionPrompted()
+        _showEngineDialog.value = false
+        _snackbarMessage.value = "Motor configurado: ${engine.title}"
+    }
+
+    fun dismissInitialEnginePrompt() {
+        playerManager.markEngineSelectionPrompted()
+        _showEngineDialog.value = false
     }
 
     fun setAudioEngine(engine: AudioEngineType) {
@@ -159,6 +182,16 @@ class MusicPlayerViewModel(
             }
             trackRepository.deleteTrack(track)
             _snackbarMessage.value = "Canción eliminada de la biblioteca"
+        }
+    }
+
+    fun clearAllTracks() {
+        viewModelScope.launch(Dispatchers.IO) {
+            if (isPlaying.value) {
+                playerManager.playPause()
+            }
+            trackRepository.clearAllTracks()
+            _snackbarMessage.value = "Biblioteca vaciada correctamente"
         }
     }
 

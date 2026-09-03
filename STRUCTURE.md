@@ -69,10 +69,11 @@ Este documento detalla la arquitectura de software, la organización de director
 │   │   │   │   │   └── OboeAudioBridge.kt     # Enlace JNI de Kotlin con librerías nativas
 │   │   │   │   ├── ui/                    # Capa de interfaz de usuario
 │   │   │   │   │   ├── MainMusicScreen.kt     # Pantalla principal con lista y buscador
+│   │   │   │   │   ├── SettingsScreen.kt      # Pantalla independiente de configuración general
 │   │   │   │   │   ├── MusicPlayerViewModel.kt# ViewModel central
 │   │   │   │   │   ├── components/
 │   │   │   │   │   │   ├── AlbumArtView.kt    # Renderizador de carátulas
-│   │   │   │   │   │   ├── EngineSelectDialog.kt # Selector de motor (Oboe vs ExoPlayer)
+│   │   │   │   │   │   ├── EngineSelectDialog.kt # Diálogo de primer inicio (Oboe vs ExoPlayer)
 │   │   │   │   │   │   ├── FullPlayerView.kt  # Reproductor a pantalla completa
 │   │   │   │   │   │   ├── MiniPlayer.kt      # Barra de reproducción inferior
 │   │   │   │   │   │   └── TrackListItem.kt   # Elemento de la lista de canciones
@@ -117,9 +118,9 @@ Este documento detalla la arquitectura de software, la organización de director
 
 ## 🔄 Ciclo de Vida del Flujo de Audio
 
-1. **Selección del Motor:**
-   - Al iniciar la app (o al pulsar sobre el distintivo de motor en la cabecera), el usuario puede elegir entre **ExoPlayer (Estándar)** y **Oboe C++ (Nativo)**.
-   - La preferencia se almacena en memoria y persistencia para futuras sesiones.
+1. **Selección del Motor y Configuración:**
+   - **Primer Inicio:** Al abrir la app por primera vez, se muestra el diálogo `EngineSelectDialog`. Al elegir el motor, la preferencia se persiste en SharedPreferences y se marca `KEY_ENGINE_PROMPTED` para que no vuelva a interrumpir en ejecuciones futuras.
+   - **Conmutación Posterior:** El usuario puede cambiar el motor activo en cualquier momento desde la pantalla independiente de **Configuración** (`SettingsScreen`) o tocando directamente el distintivo del motor en la barra superior. El cambio se aplica en caliente manteniendo la continuidad de la reproducción.
 2. **Petición de Reproducción:**
    - La UI invoca `viewModel.playTrack(track)`.
    - `AudioPlayerManager` verifica el motor activo:

@@ -31,4 +31,8 @@ class TrackRepository(private val trackDao: TrackDao) {
         } catch (_: Exception) {
         }
     }
+
+    suspend fun clearAllTracks() {
+        trackDao.deleteAll()
+    }
 }
