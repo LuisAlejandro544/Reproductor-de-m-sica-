@@ -190,14 +190,14 @@ Este documento detalla la arquitectura de software, la organización de director
 
 ## 🌉 Especificación del Puente Nativo (JNI / C-ABI)
 
-### 1. Métodos de Rust (`librust_audio.a` exportados vía `native_bridge.cpp`)
+### 1. Métodos de Rust (`ritmo_rust` enlazado y empaquetado en `jniLibs`)
 - `Java_com_example_util_RustAudioEngine_nativeExtractMetadata(JNIEnv*, jclass, jstring filePath)`
   - Retorna un string JSON con metadatos audiófilos (título, artista, álbum, duración, bitrate, sample rate, canales).
 - `Java_com_example_util_RustAudioEngine_nativeExtractArtwork(JNIEnv*, jclass, jstring filePath)`
   - Retorna un `jbyteArray` con los bytes de la imagen de portada embebida en la pista.
-- `Java_com_example_util_RustAudioEngine_nativeUpdateMetadata(JNIEnv*, jclass, jstring filePath, jstring title, jstring artist)`
-  - Escribe físicamente en el archivo de audio los nuevos tags de título y artista y valida su consistencia.
-- `Java_com_example_util_RustAudioEngine_nativeRustPing(JNIEnv*, jclass)` y `nativeRustVersion(JNIEnv*, jclass)`
+- `Java_com_example_util_RustAudioEngine_nativeUpdateMetadata(JNIEnv*, jclass, jstring filePath, jstring title, jstring artist, jstring album, jstring genre, jstring year)`
+  - Escribe físicamente en el archivo de audio los nuevos tags de título, artista, álbum, género y año directamente desde el crate nativo en Rust.
+- `Java_com_example_util_RustAudioEngine_nativePing(JNIEnv*, jclass)` y `nativeGetVersion(JNIEnv*, jclass)`
   - Métodos para verificación y prueba de enlace del núcleo nativo.
 
 ### 2. Métodos de Diagnóstico y Telemetría C++ Oboe (`OboeAudioBridge.kt`)

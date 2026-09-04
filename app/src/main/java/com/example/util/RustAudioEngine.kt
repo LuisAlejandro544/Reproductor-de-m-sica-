@@ -136,9 +136,16 @@ object RustAudioEngine {
     }
 
     /**
-     * Actualiza el título y el artista directamente en el archivo físico utilizando Rust.
+     * Actualiza metadatos avanzados (título, artista, álbum, género y año) directamente en el archivo físico utilizando Rust.
      */
-    fun updateTrackMetadata(filePath: String, newTitle: String, newArtist: String): Result<Unit> {
+    fun updateTrackMetadata(
+        filePath: String,
+        newTitle: String,
+        newArtist: String,
+        newAlbum: String = "",
+        newGenre: String = "",
+        newYear: String = ""
+    ): Result<Unit> {
         if (!isLoaded) {
             return Result.failure(IllegalStateException("El núcleo de Rust no está cargado."))
         }
@@ -152,7 +159,7 @@ object RustAudioEngine {
 
         val startTime = System.currentTimeMillis()
         val code = try {
-            nativeUpdateMetadata(filePath, newTitle, newArtist)
+            nativeUpdateMetadata(filePath, newTitle, newArtist, newAlbum, newGenre, newYear)
         } catch (t: Throwable) {
             DebugLogManager.logError(TAG, "Excepción nativa al actualizar tags con Rust", rawErrorCode = -999, throwable = t)
             return Result.failure(t)
@@ -162,7 +169,7 @@ object RustAudioEngine {
         return if (code == 0) {
             DebugLogManager.log(
                 TAG,
-                "Metadatos actualizados con éxito por Rust en ${elapsed}ms: '$newTitle' - '$newArtist'",
+                "Metadatos actualizados con éxito por Rust en ${elapsed}ms: '$newTitle' - '$newArtist' [$newAlbum, $newGenre, $newYear]",
                 DebugLogLevel.INFO,
                 rawErrorCode = 0
             )
@@ -188,5 +195,12 @@ object RustAudioEngine {
     private external fun nativeExtractArtwork(filePath: String): ByteArray?
 
     @JvmStatic
-    private external fun nativeUpdateMetadata(filePath: String, newTitle: String, newArtist: String): Int
+    private external fun nativeUpdateMetadata(
+        filePath: String,
+        newTitle: String,
+        newArtist: String,
+        newAlbum: String,
+        newGenre: String,
+        newYear: String
+    ): Int
 }

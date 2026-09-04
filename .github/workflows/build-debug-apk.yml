@@ -45,12 +45,13 @@ jobs:
           echo "=== Instalando NDK 26.1.10909125 y CMake 3.22.1 ==="
           sdkmanager "ndk;26.1.10909125" "cmake;3.22.1"
 
-      # 5. Configurar el compilador de Rust (cargo / rustc) y descargar dependencias del crate nativo
+      # 5. Configurar el compilador de Rust (cargo / rustc) y targets Android
       - name: Configurar compilador de Rust y descargar dependencias
         run: |
           echo "=== Configurando Toolchain de Rust ==="
           rustup update stable
           rustup default stable
+          rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
           rustc --version
           cargo --version
           echo "=== Descargando dependencias de Rust (cargo fetch) ==="

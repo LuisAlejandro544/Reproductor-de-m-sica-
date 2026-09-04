@@ -1,14 +1,10 @@
-refactor: modularizacion arquitectonica de FullPlayerView, native_audio, MusicPlayerViewModel y MainMusicScreen
+feat: mini-reproductor en notificacion nativa, editor de metadatos multi-campo en Rust e inclusion de librerias nativas en el APK
 
-- Modularizacion de native_audio.cpp: desacoplamiento del ciclo de vida de decodificacion en AudioDecoder (AMediaCodec/AMediaExtractor asincrono en C++)
-- Modularizacion de FullPlayerView: descomposicion en subcomponentes desacoplados en ui/components/player/ (PlayerHeader, PlayerCenterDisplay, PlayerTrackDetails, PlayerProgressBar, PlayerControlsRow, PlayerBottomQuickActions)
-- Modularizacion de MusicPlayerViewModel: separacion de responsabilidades en delegados de dominio (PlaylistViewModelDelegate y TrackMediaDelegate)
-- Modularizacion de MainMusicScreen: extraccion de navegacion tactil en MainBottomNavBar y modales/alertas/diagnostico en MainModalsHost
-- Actualizacion de la documentacion de arquitectura en STRUCTURE.md
-
----
-
-ci: corregir remoto origin autenticado en purge-rust-cache
-
-- Reconfigurar el remoto origin con GITHUB_TOKEN tras la ejecucion de git-filter-repo
-- Corregir error fatal 'origin does not appear to be a git repository' al forzar el push del historial purgado
+- Implementacion de notificacion nativa persistente (mini-reproductor) en RitmoMediaSessionService mediante DefaultMediaNotificationProvider, canal de reproduccion e icono vectorial ic_notification
+- Sincronizacion de reproduccion y metadatos en segundo plano tanto para el motor ExoPlayer como para el motor nativo Oboe C++
+- Solicitud automatica y proactiva del permiso POST_NOTIFICATIONS en MainActivity para Android 13+
+- Potenciacion del editor de metadatos en Rust: soporte completo de edicion de Titulo, Artista, Album, Genero y Año con reescritura in-place en ID3v1/ID3v2 y sincronizacion con Room y JSON modular
+- Actualizacion de EditTrackMetadataDialog con formulario completo y controles tactiles de 48dp
+- Inclusion y empaquetado de las librerias dinamicas compiladas de Rust (ritmo_rust) en jniLibs (arm64-v8a, armeabi-v7a, x86_64) dentro de build.gradle.kts
+- Optimizacion del workflow de GitHub Actions para registrar targets de Rust para Android y asegurar la inclusion de librerias nativas en el APK final
+- Actualizacion completa de la documentacion tecnica en README.md, AI_CONTEXT.md, ROADMAP.md y STRUCTURE.md

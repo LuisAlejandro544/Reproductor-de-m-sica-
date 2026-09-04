@@ -58,6 +58,11 @@ android {
     }
     debug { signingConfig = signingConfigs.getByName("debugConfig") }
   }
+  sourceSets {
+    getByName("main") {
+      jniLibs.srcDirs("src/main/jniLibs")
+    }
+  }
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_11
     targetCompatibility = JavaVersion.VERSION_11
@@ -175,9 +180,34 @@ dependencies {
 
 // Tarea de compilación e integración del módulo nativo en Rust
 val compileRust = tasks.register<Exec>("compileRust") {
-  description = "Compila el crate nativo en Rust (ritmo_rust)"
+  description = "Compila el crate nativo en Rust (ritmo_rust) y vincula librerías en jniLibs"
   workingDir = file("src/main/rust")
-  commandLine("sh", "-c", "if command -v cargo >/dev/null 2>&1; then cargo build --release; else echo 'Cargo no detectado en el entorno de compilación, utilizando artefactos nativos enlazados'; fi")
+  commandLine(
+    "sh", "-c",
+    """
+    if command -v cargo >/dev/null 2>&1; then
+      echo "=== Compilando Crate Rust ritmo_rust ==="
+      cargo build --release
+      mkdir -p ../jniLibs/arm64-v8a ../jniLibs/armeabi-v7a ../jniLibs/x86_64
+      # Copiar artefactos generados para empaquetado directo en el APK
+      if [ -f target/aarch64-linux-android/release/libritmo_rust.so ]; then
+        cp target/aarch64-linux-android/release/libritmo_rust.so ../jniLibs/arm64-v8a/
+      fi
+      if [ -f target/armv7-linux-androideabi/release/libritmo_rust.so ]; then
+        cp target/armv7-linux-androideabi/release/libritmo_rust.so ../jniLibs/armeabi-v7a/
+      fi
+      if [ -f target/x86_64-linux-android/release/libritmo_rust.so ]; then
+        cp target/x86_64-linux-android/release/libritmo_rust.so ../jniLibs/x86_64/
+      fi
+      if [ -f target/release/libritmo_rust.so ]; then
+        cp target/release/libritmo_rust.so ../jniLibs/arm64-v8a/ 2>/dev/null || true
+        cp target/release/libritmo_rust.so ../jniLibs/x86_64/ 2>/dev/null || true
+      fi
+    else
+      echo "Cargo no detectado en el entorno local, utilizando artefactos nativos enlazados"
+    fi
+    """.trimIndent()
+  )
   isIgnoreExitValue = true
 }
 

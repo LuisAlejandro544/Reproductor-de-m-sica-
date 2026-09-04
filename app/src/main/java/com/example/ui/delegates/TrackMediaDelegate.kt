@@ -73,18 +73,28 @@ class TrackMediaDelegate(
         }
     }
 
-    fun updateTrackWithRust(track: TrackEntity, newTitle: String, newArtist: String) {
+    fun updateTrackWithRust(
+        track: TrackEntity,
+        newTitle: String,
+        newArtist: String,
+        newAlbum: String = "",
+        newGenre: String = "",
+        newYear: String = ""
+    ) {
         scope.launch(Dispatchers.IO) {
             val result = RustAudioEngine.updateTrackMetadata(
                 track.filePath,
                 newTitle.trim(),
-                newArtist.trim()
+                newArtist.trim(),
+                newAlbum.trim(),
+                newGenre.trim(),
+                newYear.trim()
             )
             if (result.isSuccess) {
                 val reanalyzed = RustAudioEngine.extractMetadata(track.filePath)
                 val finalTitle = reanalyzed?.title?.takeIf { it.isNotBlank() } ?: newTitle.trim()
                 val finalArtist = reanalyzed?.artist?.takeIf { it.isNotBlank() } ?: newArtist.trim()
-                val finalAlbum = reanalyzed?.album?.takeIf { it.isNotBlank() } ?: track.album
+                val finalAlbum = reanalyzed?.album?.takeIf { it.isNotBlank() } ?: newAlbum.trim().ifEmpty { track.album }
 
                 trackRepository.updateTrackMetadata(track.id, finalTitle, finalArtist, finalAlbum)
                 val updatedEntity = track.copy(title = finalTitle, artist = finalArtist, album = finalAlbum)

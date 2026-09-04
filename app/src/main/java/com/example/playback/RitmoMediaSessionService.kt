@@ -1,19 +1,40 @@
 package com.example.playback
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
+import android.os.Build
 import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.Player
+import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.example.MainActivity
+import com.example.R
 
 class RitmoMediaSessionService : MediaSessionService() {
+
+    companion object {
+        const val NOTIFICATION_CHANNEL_ID = "ritmo_playback_channel"
+        const val NOTIFICATION_ID = 1001
+    }
 
     private var mediaSession: MediaSession? = null
 
     override fun onCreate() {
         super.onCreate()
+        createNotificationChannel()
+
+        val notificationProvider = DefaultMediaNotificationProvider.Builder(this)
+            .setChannelId(NOTIFICATION_CHANNEL_ID)
+            .setNotificationId(NOTIFICATION_ID)
+            .build().apply {
+                setSmallIcon(R.drawable.ic_notification)
+            }
+        setMediaNotificationProvider(notificationProvider)
+
         val playerManager = AudioPlayerManager.getInstance(applicationContext)
 
         val sessionActivityIntent = Intent(this, MainActivity::class.java).apply {
@@ -79,6 +100,21 @@ class RitmoMediaSessionService : MediaSessionService() {
         mediaSession = MediaSession.Builder(this, forwardingPlayer)
             .setSessionActivity(pendingIntent)
             .build()
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channelName = "Reproducción de Ritmo"
+            val channelDesc = "Controles de reproducción y mini-reproductor en segundo plano"
+            val importance = NotificationManager.IMPORTANCE_LOW
+            val channel = NotificationChannel(NOTIFICATION_CHANNEL_ID, channelName, importance).apply {
+                description = channelDesc
+                setShowBadge(false)
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+            }
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.createNotificationChannel(channel)
+        }
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {

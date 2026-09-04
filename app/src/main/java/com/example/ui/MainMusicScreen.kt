@@ -334,6 +334,9 @@ fun MainMusicScreen(
                                 PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                             )
                         },
+                        onEditMetadata = { trackToEdit ->
+                            viewModel.openTrackEditor(trackToEdit)
+                        },
                         onToggleLiked = { viewModel.toggleTrackLiked(it) },
                         onToggleFavorite = { viewModel.toggleTrackFavorite(it) },
                         onAddToPlaylist = { trackForAddToPlaylist = it },
@@ -439,8 +442,8 @@ fun MainMusicScreen(
         onSelectEngine = { newEngine -> viewModel.selectInitialEngine(newEngine) },
         onDismissEngineDialog = { viewModel.dismissInitialEnginePrompt() },
         onCloseTrackEditor = { viewModel.closeTrackEditor() },
-        onSaveTrackMetadata = { track, title, artist ->
-            viewModel.updateTrackWithRust(track, title, artist)
+        onSaveTrackMetadata = { track, title, artist, album, genre, year ->
+            viewModel.updateTrackWithRust(track, title, artist, album, genre, year)
         },
         onDismissCreatePlaylist = { showCreatePlaylistDialog = false },
         onCreatePlaylist = { name, desc ->

@@ -32,6 +32,7 @@ fun PlayerHeader(
     onToggleLyrics: () -> Unit,
     onOpenEditLyrics: () -> Unit,
     onEditArtwork: (TrackEntity) -> Unit,
+    onEditMetadata: (TrackEntity) -> Unit = {},
     onOpenEqualizer: () -> Unit,
     onOpenSpatialAudio: () -> Unit,
     onOpenSleepTimer: () -> Unit,
@@ -103,6 +104,16 @@ fun PlayerHeader(
                 onDismissRequest = { menuExpanded = false },
                 modifier = Modifier.background(DarkSurface)
             ) {
+                DropdownMenuItem(
+                    text = { Text("Editar etiquetas (Rust)", color = TextPrimary) },
+                    leadingIcon = {
+                        Icon(Icons.Default.Edit, contentDescription = null, tint = GreenPrimary)
+                    },
+                    onClick = {
+                        menuExpanded = false
+                        onEditMetadata(track)
+                    }
+                )
                 DropdownMenuItem(
                     text = { Text("Cambiar carátula (Lossless WebP)", color = TextPrimary) },
                     leadingIcon = {

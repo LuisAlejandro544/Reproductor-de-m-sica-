@@ -384,6 +384,11 @@ class AudioPlayerManager(private val context: Context) {
                     if (loaded) {
                         OboeAudioBridge.nativePlay()
                         withContext(Dispatchers.Main) {
+                            // En modo Oboe, preparar ExoPlayer en silencio con los metadatos de la pista
+                            // para que MediaSessionService y la notificación del sistema muestren la carátula,
+                            // título, artista y controles multimedia en segundo plano
+                            syncExoPlayerForMediaSession(track, 0L, isPlaying = true)
+                            startPlaybackService()
                             _isPlaying.value = true
                             _duration.value = if (track.durationMs > 0) track.durationMs else OboeAudioBridge.nativeGetDuration()
                             _currentPosition.value = 0L
@@ -408,9 +413,46 @@ class AudioPlayerManager(private val context: Context) {
 
             // ExoPlayer (Estándar o Fallback)
             withContext(Dispatchers.Main) {
+                startPlaybackService()
                 playTrackWithExoPlayer(track, 0L, true)
             }
         }
+    }
+
+    private fun startPlaybackService() {
+        try {
+            val serviceIntent = Intent(context, RitmoMediaSessionService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(serviceIntent)
+            } else {
+                context.startService(serviceIntent)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "No se pudo iniciar RitmoMediaSessionService", e)
+        }
+    }
+
+    private fun syncExoPlayerForMediaSession(track: TrackEntity, startPositionMs: Long = 0L, isPlaying: Boolean) {
+        val mediaMetadata = MediaMetadata.Builder()
+            .setTitle(track.title)
+            .setArtist(track.artist)
+            .setAlbumTitle(track.album)
+            .setArtworkUri(track.artworkPath?.let { Uri.fromFile(File(it)) })
+            .build()
+
+        val mediaItem = MediaItem.Builder()
+            .setUri(Uri.fromFile(File(track.filePath)))
+            .setMediaMetadata(mediaMetadata)
+            .build()
+
+        // Sincronizar item de ExoPlayer con volumen 0 para el motor Oboe
+        exoPlayer.volume = 0f
+        exoPlayer.setMediaItem(mediaItem)
+        exoPlayer.prepare()
+        if (startPositionMs > 0L) {
+            exoPlayer.seekTo(startPositionMs)
+        }
+        exoPlayer.playWhenReady = isPlaying
     }
 
     private fun playTrackWithExoPlayer(track: TrackEntity, startPositionMs: Long = 0L, playWhenReady: Boolean = true) {
@@ -426,6 +468,7 @@ class AudioPlayerManager(private val context: Context) {
             .setMediaMetadata(mediaMetadata)
             .build()
 
+        exoPlayer.volume = 1f
         exoPlayer.setMediaItem(mediaItem)
         exoPlayer.prepare()
         if (startPositionMs > 0L) {
@@ -439,8 +482,10 @@ class AudioPlayerManager(private val context: Context) {
     }
 
     fun play() {
+        startPlaybackService()
         if (_activeEngine.value == AudioEngineType.OBOE_CPP && OboeAudioBridge.isNativeReady()) {
             OboeAudioBridge.nativePlay()
+            exoPlayer.playWhenReady = true
             _isPlaying.value = true
             startProgressTracker()
         } else {
@@ -451,6 +496,7 @@ class AudioPlayerManager(private val context: Context) {
     fun pause() {
         if (_activeEngine.value == AudioEngineType.OBOE_CPP && OboeAudioBridge.isNativeReady()) {
             OboeAudioBridge.nativePause()
+            exoPlayer.playWhenReady = false
             _isPlaying.value = false
             stopProgressTracker()
         } else {

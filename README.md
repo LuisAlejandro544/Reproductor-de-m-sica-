@@ -10,7 +10,8 @@ La aplicación está concebida para su distribución independiente en tiendas de
 
 ### 1. 🦀 Núcleo de Metadatos Audiófilo en Rust (`ritmo_rust`)
 - **Parsing Nativo Directo:** La extracción, indexación y lectura profunda de metadatos (ID3v1, ID3v2, FLAC/Vorbis, Opus y APE) se ejecuta íntegramente en el módulo nativo de Rust compilado con C-ABI, sin pasar por analizadores de Kotlin.
-- **Edición y Reescritura de Etiquetas:** Permite editar el título y artista de las canciones directamente desde la interfaz táctil. Rust modifica el archivo en el almacenamiento y reanaliza automáticamente las etiquetas para sincronizar el álbum detectado con la base de datos local y los archivos JSON modulares.
+- **Edición Avanzada y Reescritura Multi-Campo de Etiquetas:** Permite editar de forma potente el **título, artista, álbum, género y año** de las canciones directamente desde la interfaz táctil. Rust modifica in-place las estructuras de tags en el almacenamiento y reanaliza automáticamente las etiquetas para sincronizar la base de datos Room y los archivos JSON modulares.
+- **Integración Nativa Total en APK:** El crate de Rust se compila para múltiples arquitecturas Android (`aarch64`, `armv7`, `x86_64`) y se empaqueta directamente en `jniLibs` para garantizar su presencia en el APK final sin omisiones.
 - **Extracción de Arte de Portada:** Obtención directa de los bytes crudos de carátulas integradas en el contenedor de audio para su procesamiento posterior.
 
 ### 2. 🐛 Herramientas de Debug Avanzadas & Telemetría Cruda (Desarrollo en Móvil)
@@ -55,7 +56,9 @@ La aplicación está concebida para su distribución independiente en tiendas de
 - **Distintivo Visual en Interfaz:** Las listas automáticas se identifican con el badge `"ARTISTA"` y un icono dedicado en `PlaylistListView`.
 
 ### 7. 📱 Experiencia Táctil Ergonómica y Reproducción en Segundo Plano
-- **`RitmoMediaSessionService`:** Control continuo desde la barra de notificaciones, pantalla de bloqueo y dispositivos Bluetooth.
+- **Mini-Reproductor Nativo en Barra de Notificaciones y Pantalla de Bloqueo:** Notificación nativa persistente en primer plano mediante `DefaultMediaNotificationProvider`, canal `ritmo_playback_channel` e icono `ic_notification`. Muestra carátula, título, artista, barra de progreso y botones de reproducción/pausa/avance tanto en motor ExoPlayer como en motor Oboe C++.
+- **`RitmoMediaSessionService`:** Servicio de medios en primer plano enlazado a la sesión multimedia para persistencia ininterrumpida al salir de la aplicación o con la pantalla apagada.
+- **Permiso en Tiempo Real `POST_NOTIFICATIONS`:** Solicitud proactiva de permisos en Android 13+ para garantizar la visibilidad inmediata del reproductor del sistema.
 - **Controles Táctiles de 48dp:** Diseñados específicamente para navegación y control cómodo con una sola mano en pantallas de smartphones.
 - **Animaciones Fluidas:** Curvas `FastOutSlowInEasing`, escalado elástico `spring` en carátulas y barras animadas en vivo para la pista en reproducción.
 

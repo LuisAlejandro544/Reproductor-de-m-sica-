@@ -9,10 +9,11 @@ Este documento define la hoja de ruta estratégica para el desarrollo de **Ritmo
 - [x] **Núcleo de Metadatos Audiófilo en Rust (`ritmo_rust`):**
   - [x] Extracción e indexación profunda de metadatos (ID3v1, ID3v2, FLAC/Vorbis, Opus, APE) directamente en Rust sin intermediación de Kotlin.
   - [x] Extracción de arte de portada embebido en bytes crudos desde el archivo fuente.
-  - [x] Edición y reescritura nativa de etiquetas (título y artista) delegada 100% a Rust.
-  - [x] Re-análisis nativo automático de tags tras la edición para detección y sincronización de álbum.
+  - [x] Edición y reescritura nativa avanzada multi-campo de etiquetas (título, artista, álbum, género y año) delegada 100% a Rust.
+  - [x] Integración en el empaquetado del APK en `jniLibs` para todas las ABIs soportadas (`arm64-v8a`, `armeabi-v7a`, `x86_64`).
+  - [x] Re-análisis nativo automático de tags tras la edición para detección y sincronización de álbum en Room y JSON modular.
   - [x] Puente JNI/C-ABI en `RustAudioEngine.kt` y `native_bridge.cpp`.
-  - [x] Diálogo táctil de 48dp `EditTrackMetadataDialog` en Compose con confirmación nativa.
+  - [x] Diálogo táctil de 48dp `EditTrackMetadataDialog` en Compose con edición completa de metadatos.
 - [x] **Herramientas de Debug Avanzadas & Telemetría Cruda (Desarrollo en Móvil):**
   - [x] Sistema de registro en memoria `DebugLogManager` con búfer circular de eventos clasificados por severidad.
   - [x] Captura de códigos de error numéricos crudos de C++ Oboe (`nativeGetLastErrorCode`, `nativeGetLastErrorString`) y Media3 (`PlaybackException.errorCode`).
@@ -36,7 +37,10 @@ Este documento define la hoja de ruta estratégica para el desarrollo de **Ritmo
   - [x] Soporte unificado en Oboe y Media3 (mediante `Media3EqualizerAudioProcessor`), garantizando idéntica respuesta acústica.
   - [x] Modal interactivo `EqualizerModal` en Compose con preajustes de fábrica.
 - [x] **Reproducción en Segundo Plano y Ergonomía:**
-  - [x] Integración con `RitmoMediaSessionService` para control en notificaciones y pantalla de bloqueo.
+  - [x] Notificación nativa persistente (mini-reproductor) mediante `DefaultMediaNotificationProvider` con canal de audio e icono vectorial dedicado.
+  - [x] Sincronización continua de carátula, título, artista y posición para motor ExoPlayer y motor Oboe C++.
+  - [x] Integración con `RitmoMediaSessionService` para control en notificaciones, pantalla de bloqueo y accesorios Bluetooth.
+  - [x] Solicitud proactiva de permiso `POST_NOTIFICATIONS` en Android 13+.
   - [x] Controles táctiles de 48dp optimizados para smartphone.
   - [x] Animaciones fluidas: curvas `FastOutSlowInEasing`, escalado elástico `spring` en carátula y barras de ecualización animadas en vivo.
 - [x] **Almacenamiento Modular y Carátulas WebP Sin Pérdida:**

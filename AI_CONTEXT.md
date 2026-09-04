@@ -11,7 +11,7 @@ Este archivo proporciona el contexto técnico completo, restricciones de diseño
 - **Arquitectura Híbrida Tripartita (Kotlin + C++ + Rust):**
   - **Kotlin & Jetpack Compose:** Capa de presentación visual táctil reactiva, Material Design 3 y orquestación MVVM.
   - **C++20 & Google Oboe / AAudio:** Motor de audio nativo de ultra baja latencia con procesamiento DSP en tiempo real (filtros Biquad IIR para ecualización de 10 bandas compartida con Media3).
-  - **Rust 2021 (`ritmo_rust`):** Núcleo audiófilo de extracción, indexación y reescritura de metadatos (ID3v1, ID3v2, FLAC/Vorbis, Opus, APE) con análisis nativo automático de tags y álbum.
+  - **Rust 2021 (`ritmo_rust`):** Núcleo audiófilo de extracción, indexación y reescritura avanzada multi-campo de metadatos (título, artista, álbum, género, año en ID3v1, ID3v2, FLAC/Vorbis, Opus, APE) con análisis nativo automático y compilación directa integrada en `jniLibs` para garantizar la presencia de las librerías dinámicas en el APK final.
 - **Herramientas de Depuración Avanzadas con Códigos Crudos:** Suite integrada en la UI (`DebugLogManager`, `DebugConsoleModal`, `RawErrorDialog`) con captura de códigos numéricos de C++ Oboe, Media3 y Rust para depuración total en smartphone sin necesidad de PC ni ADB.
 - **Suite de Debug para Smartphone:**
   - **Timber & `RitmoDebugTree`:** Sistema de logging robusto conectado directamente a `DebugLogManager`.
@@ -21,7 +21,10 @@ Este archivo proporciona el contexto técnico completo, restricciones de diseño
   - `AudioPlayerManager` dividido en `PlaybackQueueManager` y `EqualizerController`.
   - Vistas UI (`MainMusicScreen`, `SettingsScreen`) modularizadas en submódulos limpios bajo `ui.main` y `ui.settings`.
   - Crate Rust `ritmo_rust` dividido en submódulos especializados (`models`, `id3`, `vorbis`, `flac`, `ape`, `mp4`, `writer`, `jni_bridge`).
-- **Reproducción en Segundo Plano:** Implementada con `RitmoMediaSessionService` para control continuo en notificaciones, pantalla de bloqueo y accesorios Bluetooth.
+- **Reproducción en Segundo Plano y Mini-Reproductor del Sistema:**
+  - `RitmoMediaSessionService` como servicio en primer plano con `DefaultMediaNotificationProvider`, canal dedicado e icono `ic_notification`.
+  - Sincronización continua de metadatos tanto para motor ExoPlayer como Oboe C++, manteniendo controles activos en la barra de notificaciones, pantalla de bloqueo y dispositivos Bluetooth.
+  - Solicitud proactiva de permiso `POST_NOTIFICATIONS` en Android 13+.
 - **Visualizador y Editor de Letras Sincronizadas (LRC y Texto):**
   - `LyricsParser`: Analizador de marcas de tiempo estándar y centésimas `[mm:ss.xx]`, seguimiento de estrofa activa y persistencia de archivos complementarios `.lrc` / `.txt` en disco.
   - `LyricsView` y `EditLyricsDialog`: Autodesplazamiento sincronizado, interacción de salto temporal (*seek*) al pulsar cualquier línea y diálogo táctil de 48dp para ingresar o pegar letras.

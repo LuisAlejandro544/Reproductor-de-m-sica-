@@ -101,6 +101,9 @@ pub extern "system" fn Java_com_example_util_RustAudioEngine_nativeUpdateMetadat
     j_path: JString<'local>,
     j_title: JString<'local>,
     j_artist: JString<'local>,
+    j_album: JString<'local>,
+    j_genre: JString<'local>,
+    j_year: JString<'local>,
 ) -> jint {
     let path_str: String = match env.get_string(&j_path) {
         Ok(s) => s.into(),
@@ -114,8 +117,20 @@ pub extern "system" fn Java_com_example_util_RustAudioEngine_nativeUpdateMetadat
         Ok(s) => s.into(),
         Err(_) => return -3,
     };
+    let album_str: String = match env.get_string(&j_album) {
+        Ok(s) => s.into(),
+        Err(_) => return -4,
+    };
+    let genre_str: String = match env.get_string(&j_genre) {
+        Ok(s) => s.into(),
+        Err(_) => return -5,
+    };
+    let year_str: String = match env.get_string(&j_year) {
+        Ok(s) => s.into(),
+        Err(_) => return -6,
+    };
 
-    match update_audio_metadata(&path_str, &title_str, &artist_str) {
+    match update_audio_metadata(&path_str, &title_str, &artist_str, &album_str, &genre_str, &year_str) {
         Ok(_) => 0,
         Err(_) => -10,
     }

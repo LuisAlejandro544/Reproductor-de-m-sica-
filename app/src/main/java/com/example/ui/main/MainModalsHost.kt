@@ -36,7 +36,7 @@ fun MainModalsHost(
     onSelectEngine: (AudioEngineType) -> Unit,
     onDismissEngineDialog: () -> Unit,
     onCloseTrackEditor: () -> Unit,
-    onSaveTrackMetadata: (TrackEntity, String, String) -> Unit,
+    onSaveTrackMetadata: (TrackEntity, String, String, String, String, String) -> Unit,
     onDismissCreatePlaylist: () -> Unit,
     onCreatePlaylist: (String, String) -> Unit,
     onDismissEditPlaylist: () -> Unit,
@@ -75,8 +75,8 @@ fun MainModalsHost(
         EditTrackMetadataDialog(
             track = track,
             onDismiss = onCloseTrackEditor,
-            onSave = { newTitle, newArtist ->
-                onSaveTrackMetadata(track, newTitle, newArtist)
+            onSave = { newTitle, newArtist, newAlbum, newGenre, newYear ->
+                onSaveTrackMetadata(track, newTitle, newArtist, newAlbum, newGenre, newYear)
             }
         )
     }

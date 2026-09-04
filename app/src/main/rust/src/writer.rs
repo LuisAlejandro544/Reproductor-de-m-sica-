@@ -4,9 +4,16 @@ use std::fs::OpenOptions;
 use std::io::{Read, Seek, SeekFrom, Write};
 use crate::id3::synchsafe_to_u32;
 
-/// Actualiza el título y el artista en un archivo de audio directamente en Rust.
-/// Modifica in-place los frames TIT2 y TPE1 en ID3v2, así como los campos en ID3v1 si existen.
-pub fn update_audio_metadata(path: &str, new_title: &str, new_artist: &str) -> Result<String, String> {
+/// Actualiza el título, artista, álbum, género y año en un archivo de audio directamente en Rust.
+/// Modifica in-place los frames TIT2, TPE1, TALB, TCON, TYER/TDRC en ID3v2, así como los campos en ID3v1 si existen.
+pub fn update_audio_metadata(
+    path: &str,
+    new_title: &str,
+    new_artist: &str,
+    new_album: &str,
+    new_genre: &str,
+    new_year: &str,
+) -> Result<String, String> {
     let mut file = OpenOptions::new()
         .read(true)
         .write(true)
@@ -24,7 +31,7 @@ pub fn update_audio_metadata(path: &str, new_title: &str, new_artist: &str) -> R
     if file.seek(SeekFrom::Start(0)).is_ok() && file.read_exact(&mut id3_header).is_ok() {
         if &id3_header[0..3] == b"ID3" {
             let version_major = id3_header[3];
-            if update_id3v2_tags(&mut file, version_major, new_title, new_artist).is_ok() {
+            if update_id3v2_tags(&mut file, version_major, new_title, new_artist, new_album, new_genre, new_year).is_ok() {
                 updated_any = true;
             }
         }
@@ -32,7 +39,7 @@ pub fn update_audio_metadata(path: &str, new_title: &str, new_artist: &str) -> R
 
     // 2. Intentar actualizar ID3v1 si existe
     if file_len >= 128 {
-        if update_id3v1_tags(&mut file, file_len, new_title, new_artist).is_ok() {
+        if update_id3v1_tags(&mut file, file_len, new_title, new_artist, new_album, new_year).is_ok() {
             updated_any = true;
         }
     }
@@ -44,7 +51,15 @@ pub fn update_audio_metadata(path: &str, new_title: &str, new_artist: &str) -> R
     }
 }
 
-pub fn update_id3v2_tags(file: &mut std::fs::File, version_major: u8, title: &str, artist: &str) -> Result<(), String> {
+pub fn update_id3v2_tags(
+    file: &mut std::fs::File,
+    version_major: u8,
+    title: &str,
+    artist: &str,
+    album: &str,
+    genre: &str,
+    year: &str,
+) -> Result<(), String> {
     file.seek(SeekFrom::Start(0)).map_err(|e| e.to_string())?;
     let mut header = [0u8; 10];
     file.read_exact(&mut header).map_err(|e| e.to_string())?;
@@ -78,22 +93,32 @@ pub fn update_id3v2_tags(file: &mut std::fs::File, version_major: u8, title: &st
 
         if pos + 10 + frame_size > tag_size { break; }
 
-        if frame_id == "TIT2" || frame_id == "TPE1" {
-            let target_text = if frame_id == "TIT2" { title } else { artist };
-            let text_bytes = target_text.as_bytes();
-            let needed_payload_len = 1 + text_bytes.len(); // 1 byte encoding (0 = ISO/ASCII o 3 = UTF-8)
+        let target_text_opt = match frame_id {
+            "TIT2" => Some(title),
+            "TPE1" => Some(artist),
+            "TALB" => Some(album),
+            "TCON" => Some(genre),
+            "TYER" | "TDRC" => Some(year),
+            _ => None,
+        };
 
-            if needed_payload_len <= frame_size {
-                // Reescribir in-place con encoding UTF-8 (3)
-                let payload_start = pos + 10;
-                tag_buffer[payload_start] = 3; // UTF-8
-                tag_buffer[payload_start + 1..payload_start + 1 + text_bytes.len()].copy_from_slice(text_bytes);
+        if let Some(target_text) = target_text_opt {
+            if !target_text.is_empty() {
+                let text_bytes = target_text.as_bytes();
+                let needed_payload_len = 1 + text_bytes.len(); // 1 byte encoding (0 = ISO/ASCII o 3 = UTF-8)
 
-                // Rellenar resto del frame con ceros para no corromper la alineación
-                for b in &mut tag_buffer[payload_start + 1 + text_bytes.len()..payload_start + frame_size] {
-                    *b = 0;
+                if needed_payload_len <= frame_size {
+                    // Reescribir in-place con encoding UTF-8 (3)
+                    let payload_start = pos + 10;
+                    tag_buffer[payload_start] = 3; // UTF-8
+                    tag_buffer[payload_start + 1..payload_start + 1 + text_bytes.len()].copy_from_slice(text_bytes);
+
+                    // Rellenar resto del frame con ceros para no corromper la alineación
+                    for b in &mut tag_buffer[payload_start + 1 + text_bytes.len()..payload_start + frame_size] {
+                        *b = 0;
+                    }
+                    modified = true;
                 }
-                modified = true;
             }
         }
 
@@ -108,7 +133,14 @@ pub fn update_id3v2_tags(file: &mut std::fs::File, version_major: u8, title: &st
     Ok(())
 }
 
-pub fn update_id3v1_tags(file: &mut std::fs::File, file_len: u64, title: &str, artist: &str) -> Result<(), String> {
+pub fn update_id3v1_tags(
+    file: &mut std::fs::File,
+    file_len: u64,
+    title: &str,
+    artist: &str,
+    album: &str,
+    year: &str,
+) -> Result<(), String> {
     file.seek(SeekFrom::Start(file_len - 128)).map_err(|e| e.to_string())?;
     let mut buffer = [0u8; 128];
     file.read_exact(&mut buffer).map_err(|e| e.to_string())?;
@@ -127,6 +159,18 @@ pub fn update_id3v1_tags(file: &mut std::fs::File, file_len: u64, title: &str, a
     let artist_bytes = artist.as_bytes();
     for i in 0..30 {
         buffer[33 + i] = if i < artist_bytes.len() { artist_bytes[i] } else { 0 };
+    }
+
+    // Álbum: 30 bytes (pos 63 a 93)
+    let album_bytes = album.as_bytes();
+    for i in 0..30 {
+        buffer[63 + i] = if i < album_bytes.len() { album_bytes[i] } else { 0 };
+    }
+
+    // Año: 4 bytes (pos 93 a 97)
+    let year_bytes = year.as_bytes();
+    for i in 0..4 {
+        buffer[93 + i] = if i < year_bytes.len() { year_bytes[i] } else { 0 };
     }
 
     file.seek(SeekFrom::Start(file_len - 128)).map_err(|e| e.to_string())?;

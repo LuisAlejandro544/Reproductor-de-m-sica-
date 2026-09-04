@@ -196,8 +196,14 @@ class MusicPlayerViewModel(
     // Delegación de Edición de Metadatos y Medios
     fun openTrackEditor(track: TrackEntity) = mediaDelegate.openTrackEditor(track)
     fun closeTrackEditor() = mediaDelegate.closeTrackEditor()
-    fun updateTrackWithRust(track: TrackEntity, newTitle: String, newArtist: String) =
-        mediaDelegate.updateTrackWithRust(track, newTitle, newArtist)
+    fun updateTrackWithRust(
+        track: TrackEntity,
+        newTitle: String,
+        newArtist: String,
+        newAlbum: String = "",
+        newGenre: String = "",
+        newYear: String = ""
+    ) = mediaDelegate.updateTrackWithRust(track, newTitle, newArtist, newAlbum, newGenre, newYear)
     fun importUris(uris: List<Uri>) = mediaDelegate.importUris(uris)
     fun updateTrackArtwork(track: TrackEntity, imageUri: Uri) = mediaDelegate.updateTrackArtwork(track, imageUri)
     fun updateTrackLyrics(track: TrackEntity, lyrics: String?) = mediaDelegate.updateTrackLyrics(track, lyrics)
