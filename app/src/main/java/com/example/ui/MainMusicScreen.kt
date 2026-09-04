@@ -69,6 +69,11 @@ fun MainMusicScreen(
     val spatialAudioDepth by viewModel.spatialAudioDepth.collectAsStateWithLifecycle()
     val spatialAudioReverb by viewModel.spatialAudioReverb.collectAsStateWithLifecycle()
 
+    val isSpeedPitchModalOpen by viewModel.isSpeedPitchModalOpen.collectAsStateWithLifecycle()
+    val playbackSpeed by viewModel.playbackSpeed.collectAsStateWithLifecycle()
+    val pitchSemitones by viewModel.pitchSemitones.collectAsStateWithLifecycle()
+    val isPitchPreservationEnabled by viewModel.isPitchPreservationEnabled.collectAsStateWithLifecycle()
+
     val isSleepTimerModalOpen by viewModel.isSleepTimerModalOpen.collectAsStateWithLifecycle()
     val sleepTimerStatus by viewModel.sleepTimerStatus.collectAsStateWithLifecycle()
 
@@ -318,6 +323,9 @@ fun MainMusicScreen(
                         onOpenEqualizer = { viewModel.openEqualizer() },
                         isSpatialAudioEnabled = isSpatialAudioEnabled,
                         onOpenSpatialAudio = { viewModel.openSpatialAudioModal() },
+                        playbackSpeed = playbackSpeed,
+                        pitchSemitones = pitchSemitones,
+                        onOpenSpeedPitch = { viewModel.openSpeedPitchModal() },
                         sleepTimerStatus = sleepTimerStatus,
                         onOpenSleepTimer = { viewModel.openSleepTimerModal() },
                         onCollapse = { viewModel.setPlayerExpanded(false) },
@@ -390,6 +398,22 @@ fun MainMusicScreen(
                 onCancelTimer = { viewModel.cancelSleepTimer() },
                 onDismiss = { viewModel.closeSleepTimerModal() }
             )
+
+            // Modal de Control de Velocidad y Afinación / Tono Independiente en C++ (Oboe)
+            if (isSpeedPitchModalOpen) {
+                PlaybackSpeedPitchModal(
+                    activeEngine = activeEngine,
+                    playbackSpeed = playbackSpeed,
+                    pitchSemitones = pitchSemitones,
+                    isPitchPreservationEnabled = isPitchPreservationEnabled,
+                    onSpeedChange = { viewModel.setPlaybackSpeed(it) },
+                    onPitchChange = { viewModel.setPitchSemitones(it) },
+                    onPitchPreservationToggle = { viewModel.setPitchPreservationEnabled(it) },
+                    onResetDefaults = { viewModel.resetSpeedAndPitch() },
+                    onSwitchToOboe = { viewModel.setAudioEngine(com.example.playback.AudioEngineType.OBOE_CPP) },
+                    onDismiss = { viewModel.closeSpeedPitchModal() }
+                )
+            }
 
             // Pantalla de Ajustes
             AnimatedVisibility(

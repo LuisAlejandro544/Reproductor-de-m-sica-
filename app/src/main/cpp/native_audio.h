@@ -7,6 +7,7 @@
 #include "equalizer.h"
 #include "spatial_audio.h"
 #include "audio_decoder.h"
+#include "time_pitch_processor.h"
 #include <string>
 #include <vector>
 #include <atomic>
@@ -58,6 +59,15 @@ public:
     void setSpatialAudioReverb(float reverb);
     float getSpatialAudioReverb() const;
 
+    // Métodos de Velocidad y Afinación / Tono Independiente (C++ Oboe Exclusivo)
+    void setPlaybackSpeed(float speed);
+    float getPlaybackSpeed() const;
+    void setPitchSemitones(float semitones);
+    float getPitchSemitones() const;
+    void setPitchPreservationEnabled(bool enabled);
+    bool isPitchPreservationEnabled() const;
+    void resetSpeedAndPitch();
+
     // Diagnósticos y Códigos de Error Crudos para Depuración
     int32_t getLastErrorCode() const;
     std::string getLastErrorMsg() const;
@@ -101,6 +111,7 @@ private:
 
     TenBandEqualizer mEqualizer;
     SpatialAudio8DProcessor mSpatial8D;
+    TimePitchProcessor mTimePitchProcessor;
 
     mutable std::mutex mBufferMutex;
     mutable std::mutex mErrorMutex;

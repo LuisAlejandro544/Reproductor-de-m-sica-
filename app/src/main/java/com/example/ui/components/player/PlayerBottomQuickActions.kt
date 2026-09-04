@@ -27,9 +27,12 @@ fun PlayerBottomQuickActions(
     isSpatialAudioEnabled: Boolean,
     sleepTimerStatus: SleepTimerStatus,
     showLyrics: Boolean,
+    playbackSpeed: Float = 1.0f,
+    pitchSemitones: Float = 0.0f,
     onSeekTo: (Long) -> Unit,
     onOpenEqualizer: () -> Unit,
     onOpenSpatialAudio: () -> Unit,
+    onOpenSpeedPitch: () -> Unit = {},
     onOpenSleepTimer: () -> Unit,
     onToggleLyrics: () -> Unit,
     modifier: Modifier = Modifier
@@ -55,7 +58,7 @@ fun PlayerBottomQuickActions(
         }
 
         // Botón de Ecualizador: Activo para ambos motores (C++ DSP en Oboe y Media3)
-        Spacer(modifier = Modifier.width(12.dp))
+        Spacer(modifier = Modifier.width(6.dp))
         IconButton(
             onClick = onOpenEqualizer,
             modifier = Modifier
@@ -66,30 +69,45 @@ fun PlayerBottomQuickActions(
                 imageVector = Icons.Default.GraphicEq,
                 contentDescription = "Ecualizador de 10 Bandas C++",
                 tint = if (isEqualizerEnabled) GreenAccent else TextSecondary,
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier.size(23.dp)
             )
         }
 
-        // Botón de Audio Espacial 360° / 8D C++ (SOLO SI EL MOTOR ES OBOE_CPP)
-        if (activeEngine == AudioEngineType.OBOE_CPP) {
-            Spacer(modifier = Modifier.width(12.dp))
-            IconButton(
-                onClick = onOpenSpatialAudio,
-                modifier = Modifier
-                    .size(48.dp)
-                    .testTag("full_player_spatial_audio_button")
-            ) {
-                Icon(
-                    imageVector = Icons.Default.SurroundSound,
-                    contentDescription = "Audio Espacial 360° (8D C++)",
-                    tint = if (isSpatialAudioEnabled) GreenAccent else TextSecondary,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
+        // Botón de Audio Espacial 360° / 8D C++ (DSP Activo en Oboe y Media3)
+        Spacer(modifier = Modifier.width(6.dp))
+        IconButton(
+            onClick = onOpenSpatialAudio,
+            modifier = Modifier
+                .size(48.dp)
+                .testTag("full_player_spatial_audio_button")
+        ) {
+            Icon(
+                imageVector = Icons.Default.SurroundSound,
+                contentDescription = "Audio Espacial 360° (8D C++)",
+                tint = if (isSpatialAudioEnabled) GreenAccent else TextSecondary,
+                modifier = Modifier.size(23.dp)
+            )
+        }
+
+        // Botón de Velocidad y Afinación / Tono C++ (WSOLA Oboe)
+        val isSpeedPitchActive = kotlin.math.abs(playbackSpeed - 1.0f) > 0.02f || kotlin.math.abs(pitchSemitones) > 0.05f
+        Spacer(modifier = Modifier.width(6.dp))
+        IconButton(
+            onClick = onOpenSpeedPitch,
+            modifier = Modifier
+                .size(48.dp)
+                .testTag("full_player_speed_pitch_button")
+        ) {
+            Icon(
+                imageVector = Icons.Default.Speed,
+                contentDescription = "Velocidad y Afinación C++",
+                tint = if (isSpeedPitchActive) GreenAccent else TextSecondary,
+                modifier = Modifier.size(23.dp)
+            )
         }
 
         // Botón de Temporizador de Sueño
-        Spacer(modifier = Modifier.width(12.dp))
+        Spacer(modifier = Modifier.width(6.dp))
         IconButton(
             onClick = onOpenSleepTimer,
             modifier = Modifier
@@ -105,7 +123,7 @@ fun PlayerBottomQuickActions(
         }
 
         // Botón de Letras (Lyrics)
-        Spacer(modifier = Modifier.width(12.dp))
+        Spacer(modifier = Modifier.width(6.dp))
         IconButton(
             onClick = onToggleLyrics,
             modifier = Modifier
@@ -116,12 +134,12 @@ fun PlayerBottomQuickActions(
                 imageVector = Icons.Default.FormatQuote,
                 contentDescription = if (showLyrics) "Ver carátula" else "Ver letras de la canción",
                 tint = if (showLyrics) GreenAccent else TextSecondary,
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier.size(23.dp)
             )
         }
 
         // Avanzar 10 segundos
-        Spacer(modifier = Modifier.width(16.dp))
+        Spacer(modifier = Modifier.width(6.dp))
         IconButton(
             onClick = { onSeekTo((currentPositionMs + 10000L).coerceAtMost(durationMs)) },
             modifier = Modifier.size(48.dp)

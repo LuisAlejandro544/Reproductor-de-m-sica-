@@ -142,7 +142,7 @@ fun SpatialAudio8DModal(
                             )
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = "DSP Nativo C++ (Oboe)",
+                                    text = "DSP Nativo C++ (360° Binaural)",
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.SemiBold

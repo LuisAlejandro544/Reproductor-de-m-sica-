@@ -13,6 +13,8 @@ import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.example.MainActivity
 import com.example.R
+import com.example.debug.DebugLogLevel
+import com.example.debug.DebugLogManager
 
 class RitmoMediaSessionService : MediaSessionService() {
 
@@ -100,6 +102,19 @@ class RitmoMediaSessionService : MediaSessionService() {
         mediaSession = MediaSession.Builder(this, forwardingPlayer)
             .setSessionActivity(pendingIntent)
             .build()
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        return try {
+            super.onStartCommand(intent, flags, startId)
+        } catch (e: Exception) {
+            DebugLogManager.log(
+                tag = "MediaSessionService",
+                message = "Excepción en onStartCommand: ${e.message}",
+                level = DebugLogLevel.WARN
+            )
+            START_NOT_STICKY
+        }
     }
 
     private fun createNotificationChannel() {

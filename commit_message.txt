@@ -1,10 +1,24 @@
-feat: mini-reproductor en notificacion nativa, editor de metadatos multi-campo en Rust e inclusion de librerias nativas en el APK
+fix: resolucion de ForegroundServiceDidNotStartInTimeException en Android 14 y optimizacion de MediaSessionService
 
-- Implementacion de notificacion nativa persistente (mini-reproductor) en RitmoMediaSessionService mediante DefaultMediaNotificationProvider, canal de reproduccion e icono vectorial ic_notification
-- Sincronizacion de reproduccion y metadatos en segundo plano tanto para el motor ExoPlayer como para el motor nativo Oboe C++
-- Solicitud automatica y proactiva del permiso POST_NOTIFICATIONS en MainActivity para Android 13+
-- Potenciacion del editor de metadatos en Rust: soporte completo de edicion de Titulo, Artista, Album, Genero y Año con reescritura in-place en ID3v1/ID3v2 y sincronizacion con Room y JSON modular
-- Actualizacion de EditTrackMetadataDialog con formulario completo y controles tactiles de 48dp
-- Inclusion y empaquetado de las librerias dinamicas compiladas de Rust (ritmo_rust) en jniLibs (arm64-v8a, armeabi-v7a, x86_64) dentro de build.gradle.kts
-- Optimizacion del workflow de GitHub Actions para registrar targets de Rust para Android y asegurar la inclusion de librerias nativas en el APK final
-- Actualizacion completa de la documentacion tecnica en README.md, AI_CONTEXT.md, ROADMAP.md y STRUCTURE.md
+- Correccion del arranque de RitmoMediaSessionService en AudioPlayerManager migrando de context.startForegroundService() a context.startService() estandar
+- Eliminacion del temporizador estricto de ForegroundServiceDidNotStartInTimeException en Android 14 (API 34) al permitir que AndroidX Media3 gestione la auto-promocion a primer plano al detectar reproduccion activa
+- Implementacion de onStartCommand() seguro en RitmoMediaSessionService con captura y registro de excepciones en DebugLogManager
+- Preservacion de la notificacion nativa del sistema, mini-reproductor en pantalla de bloqueo y controles Bluetooth tanto para el motor ExoPlayer como para Oboe C++
+
+feat: integracion 100% de Audio Espacial 360° / 8D C++ en ambos motores y limpieza de Play Services
+
+- Integracion nativa del procesador DSP de Audio Espacial 8D (SpatialAudio8DProcessor en C++) tanto para Oboe como para Media3/ExoPlayer mediante enlace JNI y Media3EqualizerAudioProcessor
+- Modelado binaural completo en tiempo real con diferencias interaurales ITD e ILD, paneo esferico 360°, retardo interpolado sub-muestra y micro-reverberacion de sala acustica
+- Apertura del control táctil de Audio 8D en PlayerBottomQuickActions para todos los motores de audio
+- Desactivacion de dependencias no utilizadas de Firebase y Google Play Services para optimizar el APK para distribucion offline independiente (Uptodown)
+- Correccion integral de startBackgroundService hacia startService() para maxima compatibilidad en Android 14+
+
+feat: control independiente de velocidad y tono en C++ con algoritmo WSOLA (Oboe Exclusivo)
+
+- Implementacion del procesador DSP TimePitchProcessor en C++20 con algoritmo WSOLA (Waveform Similarity Overlap-Add) y remuestreo por interpolacion cubica Hermite
+- Modulacion de velocidad de reproduccion (0.5x a 2.0x) con preservacion transparente del tono original sin artefactos de 'voz de ardilla' ni 'voz de ogro'
+- Control independiente de afinacion musical (-6.0 a +6.0 semitonos) y modo alternativo de velocidad con variacion de tono clasico
+- Integracion directa en el ciclo de renderizado nativo en tiempo real de OboeAudioPlayer (onAudioReady)
+- Puente JNI seguro en native_bridge.cpp, OboeAudioBridge.kt y sincronizacion reactiva en AudioPlayerManager y MusicPlayerViewModel
+- Modal tactil PlaybackSpeedPitchModal con preajustes audiófilos (0.75x, 1.0x, 1.25x, 1.5x, 432 Hz, Nightcore, Slowed+Reverb), deslizadores fluidos y visualizador de onda senoidal en tiempo real
+- Acceso directo de 48dp en la barra de acciones rapidas de FullPlayerView e indicador de estado en la pantalla de Ajustes de Arquitectura

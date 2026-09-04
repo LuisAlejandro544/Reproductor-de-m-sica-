@@ -35,6 +35,12 @@ fun SettingsArchitectureSection() {
                 statusColor = GreenAccent
             )
             ArchitectureStatusItem(
+                label = "Velocidad y Afinación WSOLA (C++)",
+                detail = "Time-stretching y cambio de tono independiente exclusivo en Oboe",
+                status = "Operativo",
+                statusColor = GreenAccent
+            )
+            ArchitectureStatusItem(
                 label = "MediaSessionService",
                 detail = "Reproducción continua en segundo plano y controles",
                 status = "Enlazado",

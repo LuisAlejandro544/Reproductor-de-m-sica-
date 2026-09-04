@@ -180,6 +180,9 @@ bool OboeAudioPlayer::loadFile(const std::string& filePath) {
         return false;
     }
 
+    mTimePitchProcessor.configure(mSampleRate, mChannelCount);
+    mTimePitchProcessor.reset();
+
     LOGI("Track initialized instantaneously: initialFrames=%lld, totalFramesEst=%lld, rate=%d, channels=%d",
          (long long)(mDecodedSamples.load() / (mChannelCount > 0 ? mChannelCount : 2)),
          (long long)mTotalFrames, mSampleRate, mChannelCount);
@@ -228,6 +231,7 @@ bool OboeAudioPlayer::stop() {
     mIsPlaying.store(false);
     mCurrentFrameIndex.store(0);
     mIsPlaybackEnded.store(false);
+    mTimePitchProcessor.reset();
     if (mAudioStream) {
         oboe::StreamState state = mAudioStream->getState();
         if (state != oboe::StreamState::Stopped && state != oboe::StreamState::Stopping &&
@@ -260,6 +264,7 @@ bool OboeAudioPlayer::seekTo(int64_t positionMs) {
     int64_t limitFrames = mTotalFrames > 0 ? mTotalFrames : availableFrames;
     targetFrame = std::max<int64_t>(0, std::min<int64_t>(targetFrame, limitFrames));
     mCurrentFrameIndex.store(targetFrame);
+    mTimePitchProcessor.reset();
     if (targetFrame < limitFrames) {
         mIsPlaybackEnded.store(false);
     }
@@ -308,49 +313,55 @@ oboe::DataCallbackResult OboeAudioPlayer::onAudioReady(
     }
 
     int32_t framesAvailable = (currentFrame < availableFrames) ? static_cast<int32_t>(availableFrames - currentFrame) : 0;
-    int32_t framesToRead = std::min<int32_t>(numFrames, framesAvailable);
 
-    if (framesToRead > 0) {
-        if (fileChannels == streamChannels) {
-            size_t sampleOffset = currentFrame * fileChannels;
-            size_t samplesToCopy = framesToRead * fileChannels;
-            if (sampleOffset + samplesToCopy <= mPcmBuffer.size()) {
-                std::memcpy(output, &mPcmBuffer[sampleOffset], samplesToCopy * sizeof(int16_t));
-            } else {
-                std::memset(output, 0, samplesToCopy * sizeof(int16_t));
-            }
-        } else if (fileChannels == 1 && streamChannels == 2) {
-            // Mono to stereo upmix
-            size_t sampleOffset = currentFrame;
-            for (int32_t i = 0; i < framesToRead; ++i) {
-                if (sampleOffset + i < mPcmBuffer.size()) {
-                    int16_t s = mPcmBuffer[sampleOffset + i];
-                    output[i * 2] = s;
-                    output[i * 2 + 1] = s;
+    auto readSourceFrames = [&](int16_t* dest, int32_t count) -> int32_t {
+        int64_t curr = mCurrentFrameIndex.load(std::memory_order_relaxed);
+        int32_t avail = (curr < availableFrames) ? static_cast<int32_t>(availableFrames - curr) : 0;
+        int32_t toRead = std::min<int32_t>(count, avail);
+        if (toRead > 0) {
+            if (fileChannels == streamChannels) {
+                size_t sampleOffset = curr * fileChannels;
+                size_t samplesToCopy = toRead * fileChannels;
+                if (sampleOffset + samplesToCopy <= mPcmBuffer.size()) {
+                    std::memcpy(dest, &mPcmBuffer[sampleOffset], samplesToCopy * sizeof(int16_t));
                 } else {
-                    output[i * 2] = 0;
-                    output[i * 2 + 1] = 0;
+                    std::memset(dest, 0, samplesToCopy * sizeof(int16_t));
+                }
+            } else if (fileChannels == 1 && streamChannels == 2) {
+                size_t sampleOffset = curr;
+                for (int32_t i = 0; i < toRead; ++i) {
+                    if (sampleOffset + i < mPcmBuffer.size()) {
+                        int16_t s = mPcmBuffer[sampleOffset + i];
+                        dest[i * 2] = s;
+                        dest[i * 2 + 1] = s;
+                    } else {
+                        dest[i * 2] = 0;
+                        dest[i * 2 + 1] = 0;
+                    }
+                }
+            } else {
+                size_t sampleOffset = curr * fileChannels;
+                for (int32_t i = 0; i < toRead; ++i) {
+                    for (int32_t ch = 0; ch < streamChannels; ++ch) {
+                        int32_t srcCh = ch < fileChannels ? ch : (fileChannels - 1);
+                        size_t idx = sampleOffset + i * fileChannels + srcCh;
+                        dest[i * streamChannels + ch] = (idx < mPcmBuffer.size()) ? mPcmBuffer[idx] : 0;
+                    }
                 }
             }
-        } else {
-            // Fallback for channel format variations
-            size_t sampleOffset = currentFrame * fileChannels;
-            for (int32_t i = 0; i < framesToRead; ++i) {
-                for (int32_t ch = 0; ch < streamChannels; ++ch) {
-                    int32_t srcCh = ch < fileChannels ? ch : (fileChannels - 1);
-                    size_t idx = sampleOffset + i * fileChannels + srcCh;
-                    output[i * streamChannels + ch] = (idx < mPcmBuffer.size()) ? mPcmBuffer[idx] : 0;
-                }
-            }
+            mCurrentFrameIndex.store(curr + toRead, std::memory_order_relaxed);
         }
-        mCurrentFrameIndex.store(currentFrame + framesToRead, std::memory_order_relaxed);
-    }
+        return toRead;
+    };
 
-    if (framesToRead < numFrames) {
-        int32_t remainingSamples = (numFrames - framesToRead) * streamChannels;
-        std::memset(output + framesToRead * streamChannels, 0, remainingSamples * sizeof(int16_t));
+    int32_t framesDelivered = mTimePitchProcessor.process(output, numFrames, readSourceFrames);
 
-        if (mIsDecodingFinished.load(std::memory_order_relaxed) && (currentFrame + framesToRead >= effectiveTotal)) {
+    if (framesDelivered < numFrames) {
+        int32_t remainingSamples = (numFrames - framesDelivered) * streamChannels;
+        std::memset(output + framesDelivered * streamChannels, 0, remainingSamples * sizeof(int16_t));
+
+        int64_t curr = mCurrentFrameIndex.load(std::memory_order_relaxed);
+        if (mIsDecodingFinished.load(std::memory_order_relaxed) && (curr >= effectiveTotal)) {
             mCurrentFrameIndex.store(effectiveTotal);
             mIsPlaying.store(false);
             mIsPlaybackEnded.store(true);
@@ -358,15 +369,15 @@ oboe::DataCallbackResult OboeAudioPlayer::onAudioReady(
     }
 
     // Procesar ecualizador paramétrico de 10 bandas si está activo
-    if (framesToRead > 0) {
-        mEqualizer.process(output, framesToRead, streamChannels);
-        mSpatial8D.process(output, framesToRead, streamChannels);
+    if (framesDelivered > 0) {
+        mEqualizer.process(output, framesDelivered, streamChannels);
+        mSpatial8D.process(output, framesDelivered, streamChannels);
     }
 
     // Procesar volumen / ganancia de salida
     float volume = mVolume.load(std::memory_order_relaxed);
-    if (framesToRead > 0 && std::abs(volume - 1.0f) > 0.001f && volume >= 0.0f) {
-        int32_t sampleCount = framesToRead * streamChannels;
+    if (framesDelivered > 0 && std::abs(volume - 1.0f) > 0.001f && volume >= 0.0f) {
+        int32_t sampleCount = framesDelivered * streamChannels;
         for (int32_t i = 0; i < sampleCount; ++i) {
             float val = static_cast<float>(output[i]) * volume;
             if (val > 32767.0f) val = 32767.0f;
@@ -502,4 +513,37 @@ std::string OboeAudioPlayer::getStreamStatsJson() const {
 bool OboeAudioPlayer::isPlaybackEnded() const {
     return mIsPlaybackEnded.load();
 }
+
+void OboeAudioPlayer::setPlaybackSpeed(float speed) {
+    mTimePitchProcessor.setSpeed(speed);
+    LOGI("OboeAudioPlayer: Playback speed set to %.2fx", speed);
+}
+
+float OboeAudioPlayer::getPlaybackSpeed() const {
+    return mTimePitchProcessor.getSpeed();
+}
+
+void OboeAudioPlayer::setPitchSemitones(float semitones) {
+    mTimePitchProcessor.setPitchSemitones(semitones);
+    LOGI("OboeAudioPlayer: Pitch semitones set to %.2f st", semitones);
+}
+
+float OboeAudioPlayer::getPitchSemitones() const {
+    return mTimePitchProcessor.getPitchSemitones();
+}
+
+void OboeAudioPlayer::setPitchPreservationEnabled(bool enabled) {
+    mTimePitchProcessor.setPreservePitch(enabled);
+    LOGI("OboeAudioPlayer: Pitch preservation %s", enabled ? "ENABLED" : "DISABLED");
+}
+
+bool OboeAudioPlayer::isPitchPreservationEnabled() const {
+    return mTimePitchProcessor.isPreservePitch();
+}
+
+void OboeAudioPlayer::resetSpeedAndPitch() {
+    mTimePitchProcessor.resetToDefault();
+    LOGI("OboeAudioPlayer: Speed and pitch reset to default");
+}
+
 

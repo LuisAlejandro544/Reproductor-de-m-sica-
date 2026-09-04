@@ -40,6 +40,9 @@ fun FullPlayerView(
     onOpenEqualizer: () -> Unit = {},
     isSpatialAudioEnabled: Boolean = false,
     onOpenSpatialAudio: () -> Unit = {},
+    playbackSpeed: Float = 1.0f,
+    pitchSemitones: Float = 0.0f,
+    onOpenSpeedPitch: () -> Unit = {},
     sleepTimerStatus: SleepTimerStatus = SleepTimerStatus(),
     onOpenSleepTimer: () -> Unit = {},
     onCollapse: () -> Unit,
@@ -159,9 +162,12 @@ fun FullPlayerView(
                         isSpatialAudioEnabled = isSpatialAudioEnabled,
                         sleepTimerStatus = sleepTimerStatus,
                         showLyrics = showLyrics,
+                        playbackSpeed = playbackSpeed,
+                        pitchSemitones = pitchSemitones,
                         onSeekTo = onSeekTo,
                         onOpenEqualizer = onOpenEqualizer,
                         onOpenSpatialAudio = onOpenSpatialAudio,
+                        onOpenSpeedPitch = onOpenSpeedPitch,
                         onOpenSleepTimer = onOpenSleepTimer,
                         onToggleLyrics = { showLyrics = !showLyrics }
                     )

@@ -30,12 +30,21 @@ Este documento define la hoja de ruta estratégica para el desarrollo de **Ritmo
   - [x] Modularización de `SettingsScreen` en submódulos bajo `ui.settings` (`SettingsComponents`, `SettingsAudioEngineSection`, `SettingsArchitectureSection`, `SettingsDebugSection`, `SettingsStorageSection`, `SettingsAboutSection`).
   - [x] Modularización de `MainMusicScreen` en submódulos bajo `ui.main` (`MainTopAppBar`, `MainProgressBanners`, `MainSearchBar`, `EmptyLibraryView`, `TrackListView`).
   - [x] Creación de `RitmoApplication` para orquestar la inicialización de librerías de depuración.
-- [x] **Doble Motor de Audio y Ecualizador de 10 Bandas en C++:**
+- [x] **Doble Motor de Audio, Ecualizador de 10 Bandas y Audio Espacial 8D en C++:**
   - [x] Motor nativo C++ con Google Oboe (AAudio/OpenSL ES) para baja latencia.
   - [x] Motor estándar con ExoPlayer / Media3 para compatibilidad y streaming local.
   - [x] Ecualizador gráfico y paramétrico de 10 bandas (31 Hz a 16 kHz) con filtros Biquad IIR en C++.
   - [x] Soporte unificado en Oboe y Media3 (mediante `Media3EqualizerAudioProcessor`), garantizando idéntica respuesta acústica.
   - [x] Modal interactivo `EqualizerModal` en Compose con preajustes de fábrica.
+  - [x] **Audio Espacial 360° / Efecto 8D Nativo C++ Integrado al 100%:**
+    - [x] Procesador DSP `SpatialAudio8DProcessor` en C++ para ambos motores (Oboe y Media3).
+    - [x] Modelado binaural acústico con Interaural Time Difference (ITD) e Interaural Level Difference (ILD).
+    - [x] Simulación de retardo de sub-muestra interpolado y atenuación de sombra craneal con órbita 360°.
+    - [x] Micro-reverberación de sala multitap con parámetros de profundidad, velocidad y reverberación en tiempo real.
+    - [x] Modal táctil `SpatialAudio8DModal` en Compose y acceso directo en la barra de controles rápidos del reproductor.
+- [x] **Optimización para Distribución Offline Independiente (Uptodown):**
+  - [x] Eliminación de dependencias no utilizadas de Firebase y Google Play Services (`firebase-ai`, `firebase-bom`, `firebase-appcheck`).
+  - [x] Corrección definitiva de `startBackgroundService` hacia `startService` para eliminar cualquier `ForegroundServiceDidNotStartInTimeException` en Android 14.
 - [x] **Reproducción en Segundo Plano y Ergonomía:**
   - [x] Notificación nativa persistente (mini-reproductor) mediante `DefaultMediaNotificationProvider` con canal de audio e icono vectorial dedicado.
   - [x] Sincronización continua de carátula, título, artista y posición para motor ExoPlayer y motor Oboe C++.
@@ -70,15 +79,21 @@ Este documento define la hoja de ruta estratégica para el desarrollo de **Ritmo
   - **Herramienta de Diagnóstico y Telemetría para C++:**
     - Creación de una herramienta dedicada para C++ para depuración, inspección y profiling del motor nativo directamente desde el smartphone sin PC ni ADB.
     - Monitoreo en tiempo real de buffers PCM, tiempos de ciclo de renderizado nativo, detección de underruns/xruns y análisis del estado de memoria nativa.
-  - **Audio Espacial 360° / Efecto 8D Gratuito:**
-    - Procesamiento matemático en tiempo real a nivel de muestra PCM (*sample-by-sample*).
-    - Paneo circular continuo L/R con velocidad y radio de giro ajustables.
-    - Simulación de retardo interaural (*ITD*) y atenuación de sombra craneal (*head-shadowing*).
-    - Micro-reverberación de sala para sensación tridimensional real sin costo ni anuncios.
+  - **Audio Espacial 360° / Efecto 8D Gratuito (COMPLETADO AL 100%):**
+    - [x] Procesamiento matemático en tiempo real a nivel de muestra PCM (*sample-by-sample*) en C++.
+    - [x] Paneo circular continuo L/R con velocidad (Hz) y radio/profundidad de giro ajustables.
+    - [x] Simulación de retardo interaural (*ITD*) y atenuación espectral de sombra craneal (*ILD*).
+    - [x] Micro-reverberación de sala multitap binaural para sensación tridimensional real sin costo ni anuncios.
+    - [x] Unificado tanto para el motor Oboe C++ como para Media3/ExoPlayer mediante JNI y `Media3EqualizerAudioProcessor`.
+  - **Control de Velocidad y Afinación / Tono Independiente C++ con WSOLA (COMPLETADO AL 100%):**
+    - [x] Procesador nativo C++20 `TimePitchProcessor` en el ciclo de audio en tiempo real de Oboe.
+    - [x] Algoritmo WSOLA (*Waveform Similarity Overlap-Add*) con ventanas de Hanning y remuestreo cúbico Hermite.
+    - [x] Variación continua de velocidad (0.5x a 2.0x) con preservación transparente del tono de voz y música.
+    - [x] Desplazamiento de tono musical independiente (-6.0 a +6.0 semitonos) y modo alternativo de tono dinámico.
+    - [x] Preajustes audiófilos: 0.75x, 1.0x, 1.25x, 1.5x, Afinación A4=432 Hz, modo Nightcore y Slowed + Reverb.
+    - [x] Modal interactivo `PlaybackSpeedPitchModal` con visualizador dinámico de onda senoidal y acceso de 48dp en `FullPlayerView`.
   - **Modo Direct-to-DAC / Bit-Perfect:**
     - Acceso directo de ultra baja latencia para audiófilos con DACs USB y auriculares de monitoreo.
-  - **Control de Tono y Afinación Alternativa (432 Hz):**
-    - Modulación precisa de semitonos musicales sin alterar la velocidad.
 
 - [ ] **Funciones Exclusivas del Motor Estándar (ExoPlayer / Media3):**
   - **Crossfade Inteligente:**

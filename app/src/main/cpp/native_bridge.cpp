@@ -9,6 +9,7 @@ extern "C" {
 static std::unique_ptr<OboeAudioPlayer> gAudioPlayer;
 static std::mutex gPlayerMutex;
 static TenBandEqualizer gMedia3Equalizer;
+static SpatialAudio8DProcessor gMedia3Spatial8D;
 
 static OboeAudioPlayer* getPlayer() {
     std::lock_guard<std::mutex> lock(gPlayerMutex);
@@ -128,20 +129,22 @@ Java_com_example_playback_OboeAudioBridge_nativeResetEqualizer(JNIEnv* env, jobj
     gMedia3Equalizer.resetGains();
 }
 
-// Funciones JNI para Audio Espacial 360° / Efecto 8D Nativo (C++ Oboe)
+// Funciones JNI para Audio Espacial 360° / Efecto 8D Nativo (C++ Oboe & Media3)
 JNIEXPORT void JNICALL
 Java_com_example_playback_OboeAudioBridge_nativeSetSpatialAudioEnabled(JNIEnv* env, jobject /* this */, jboolean enabled) {
     getPlayer()->setSpatialAudioEnabled(enabled == JNI_TRUE);
+    gMedia3Spatial8D.setEnabled(enabled == JNI_TRUE);
 }
 
 JNIEXPORT jboolean JNICALL
 Java_com_example_playback_OboeAudioBridge_nativeIsSpatialAudioEnabled(JNIEnv* env, jobject /* this */) {
-    return getPlayer()->isSpatialAudioEnabled() ? JNI_TRUE : JNI_FALSE;
+    return (getPlayer()->isSpatialAudioEnabled() || gMedia3Spatial8D.isEnabled()) ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT void JNICALL
 Java_com_example_playback_OboeAudioBridge_nativeSetSpatialAudioSpeed(JNIEnv* env, jobject /* this */, jfloat speedHz) {
     getPlayer()->setSpatialAudioSpeed(static_cast<float>(speedHz));
+    gMedia3Spatial8D.setRotationSpeed(static_cast<float>(speedHz));
 }
 
 JNIEXPORT jfloat JNICALL
@@ -152,6 +155,7 @@ Java_com_example_playback_OboeAudioBridge_nativeGetSpatialAudioSpeed(JNIEnv* env
 JNIEXPORT void JNICALL
 Java_com_example_playback_OboeAudioBridge_nativeSetSpatialAudioDepth(JNIEnv* env, jobject /* this */, jfloat depth) {
     getPlayer()->setSpatialAudioDepth(static_cast<float>(depth));
+    gMedia3Spatial8D.setSpatialDepth(static_cast<float>(depth));
 }
 
 JNIEXPORT jfloat JNICALL
@@ -162,11 +166,48 @@ Java_com_example_playback_OboeAudioBridge_nativeGetSpatialAudioDepth(JNIEnv* env
 JNIEXPORT void JNICALL
 Java_com_example_playback_OboeAudioBridge_nativeSetSpatialAudioReverb(JNIEnv* env, jobject /* this */, jfloat reverb) {
     getPlayer()->setSpatialAudioReverb(static_cast<float>(reverb));
+    gMedia3Spatial8D.setRoomReverb(static_cast<float>(reverb));
 }
 
 JNIEXPORT jfloat JNICALL
 Java_com_example_playback_OboeAudioBridge_nativeGetSpatialAudioReverb(JNIEnv* env, jobject /* this */) {
     return static_cast<jfloat>(getPlayer()->getSpatialAudioReverb());
+}
+
+// Funciones JNI para Velocidad y Afinación / Tono Independiente (C++ Oboe Exclusivo)
+JNIEXPORT void JNICALL
+Java_com_example_playback_OboeAudioBridge_nativeSetPlaybackSpeed(JNIEnv* env, jobject /* this */, jfloat speed) {
+    getPlayer()->setPlaybackSpeed(static_cast<float>(speed));
+}
+
+JNIEXPORT jfloat JNICALL
+Java_com_example_playback_OboeAudioBridge_nativeGetPlaybackSpeed(JNIEnv* env, jobject /* this */) {
+    return static_cast<jfloat>(getPlayer()->getPlaybackSpeed());
+}
+
+JNIEXPORT void JNICALL
+Java_com_example_playback_OboeAudioBridge_nativeSetPitchSemitones(JNIEnv* env, jobject /* this */, jfloat semitones) {
+    getPlayer()->setPitchSemitones(static_cast<float>(semitones));
+}
+
+JNIEXPORT jfloat JNICALL
+Java_com_example_playback_OboeAudioBridge_nativeGetPitchSemitones(JNIEnv* env, jobject /* this */) {
+    return static_cast<jfloat>(getPlayer()->getPitchSemitones());
+}
+
+JNIEXPORT void JNICALL
+Java_com_example_playback_OboeAudioBridge_nativeSetPitchPreservationEnabled(JNIEnv* env, jobject /* this */, jboolean enabled) {
+    getPlayer()->setPitchPreservationEnabled(enabled == JNI_TRUE);
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_example_playback_OboeAudioBridge_nativeIsPitchPreservationEnabled(JNIEnv* env, jobject /* this */) {
+    return getPlayer()->isPitchPreservationEnabled() ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT void JNICALL
+Java_com_example_playback_OboeAudioBridge_nativeResetSpeedAndPitch(JNIEnv* env, jobject /* this */) {
+    getPlayer()->resetSpeedAndPitch();
 }
 
 JNIEXPORT void JNICALL
@@ -188,6 +229,8 @@ Java_com_example_playback_OboeAudioBridge_nativeMedia3ProcessDirect(
 
     gMedia3Equalizer.setSampleRate(static_cast<float>(sampleRate));
     gMedia3Equalizer.process(pcmData, numFrames, channelCount);
+    gMedia3Spatial8D.setSampleRate(static_cast<float>(sampleRate));
+    gMedia3Spatial8D.process(pcmData, numFrames, channelCount);
 }
 
 JNIEXPORT void JNICALL
@@ -204,6 +247,8 @@ Java_com_example_playback_OboeAudioBridge_nativeMedia3ProcessArray(
     int32_t numFrames = numSamples / channelCount;
     gMedia3Equalizer.setSampleRate(static_cast<float>(sampleRate));
     gMedia3Equalizer.process(elements + offsetSamples, numFrames, channelCount);
+    gMedia3Spatial8D.setSampleRate(static_cast<float>(sampleRate));
+    gMedia3Spatial8D.process(elements + offsetSamples, numFrames, channelCount);
 
     env->ReleaseShortArrayElements(pcmArray, elements, 0);
 }

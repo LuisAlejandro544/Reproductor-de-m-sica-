@@ -142,6 +142,14 @@ class MusicPlayerViewModel(
     private val _isSpatialAudioModalOpen = MutableStateFlow(false)
     val isSpatialAudioModalOpen: StateFlow<Boolean> = _isSpatialAudioModalOpen.asStateFlow()
 
+    // Velocidad y Afinación / Tono Independiente C++ (Oboe Exclusivo)
+    val playbackSpeed: StateFlow<Float> = playerManager.playbackSpeed
+    val pitchSemitones: StateFlow<Float> = playerManager.pitchSemitones
+    val isPitchPreservationEnabled: StateFlow<Boolean> = playerManager.isPitchPreservationEnabled
+
+    private val _isSpeedPitchModalOpen = MutableStateFlow(false)
+    val isSpeedPitchModalOpen: StateFlow<Boolean> = _isSpeedPitchModalOpen.asStateFlow()
+
     // Temporizador de Sueño
     val sleepTimerStatus: StateFlow<SleepTimerStatus> = playerManager.sleepTimerManager.status
 
@@ -247,6 +255,17 @@ class MusicPlayerViewModel(
     fun setSpatialAudioSpeed(speedHz: Float) = playerManager.setSpatialAudioSpeed(speedHz)
     fun setSpatialAudioDepth(depth: Float) = playerManager.setSpatialAudioDepth(depth)
     fun setSpatialAudioReverb(reverb: Float) = playerManager.setSpatialAudioReverb(reverb)
+
+    // Velocidad y Afinación / Tono Independiente C++ (Oboe)
+    fun openSpeedPitchModal() { _isSpeedPitchModalOpen.value = true }
+    fun closeSpeedPitchModal() { _isSpeedPitchModalOpen.value = false }
+    fun setPlaybackSpeed(speed: Float) = playerManager.setPlaybackSpeed(speed)
+    fun setPitchSemitones(semitones: Float) = playerManager.setPitchSemitones(semitones)
+    fun setPitchPreservationEnabled(enabled: Boolean) = playerManager.setPitchPreservationEnabled(enabled)
+    fun resetSpeedAndPitch() {
+        playerManager.resetSpeedAndPitch()
+        _snackbarMessage.value = "Velocidad y tono restablecidos a valores originales"
+    }
 
     // Temporizador de Sueño
     fun openSleepTimerModal() { _isSleepTimerModalOpen.value = true }

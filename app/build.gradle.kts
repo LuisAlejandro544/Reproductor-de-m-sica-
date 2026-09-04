@@ -98,7 +98,7 @@ googleServices { missingGoogleServicesStrategy = MissingGoogleServicesStrategy.W
 // This makes it easy to add them back in the future if needed.
 dependencies {
   implementation(platform(libs.androidx.compose.bom))
-  implementation(platform(libs.firebase.bom))
+  // implementation(platform(libs.firebase.bom))
   // implementation(libs.accompanist.permissions)
   implementation(libs.androidx.activity.compose)
   // implementation(libs.androidx.camera.camera2)
@@ -124,18 +124,10 @@ dependencies {
   implementation(libs.androidx.media3.exoplayer)
   implementation(libs.androidx.media3.session)
   implementation(libs.converter.moshi)
-  implementation(libs.firebase.ai)
-  // Uncomment to use Firestore:
-  // implementation(libs.firebase.firestore)
-
-  // Uncomment ALL FOUR of the following dependencies together to use Firebase Auth and Google
-  // Sign-In via Credential Manager:
-  // implementation(libs.firebase.auth)
-  // implementation(libs.androidx.credentials)
-  // implementation(libs.androidx.credentials.play.services)
-  // implementation(libs.googleid)
-  implementation(libs.firebase.appcheck.recaptcha)
-  implementation(libs.firebase.appcheck.debug)
+  // Dependencias de Firebase y Google Play Services no utilizadas comentadas para distribución offline (Uptodown):
+  // implementation(libs.firebase.ai)
+  // implementation(libs.firebase.appcheck.recaptcha)
+  // implementation(libs.firebase.appcheck.debug)
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)
   implementation(libs.logging.interceptor)

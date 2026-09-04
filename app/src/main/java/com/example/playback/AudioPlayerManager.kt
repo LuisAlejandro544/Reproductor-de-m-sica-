@@ -57,6 +57,9 @@ class AudioPlayerManager(private val context: Context) {
         private const val KEY_SPATIAL_AUDIO_SPEED = "spatial_audio_speed"
         private const val KEY_SPATIAL_AUDIO_DEPTH = "spatial_audio_depth"
         private const val KEY_SPATIAL_AUDIO_REVERB = "spatial_audio_reverb"
+        private const val KEY_PLAYBACK_SPEED = "playback_speed"
+        private const val KEY_PITCH_SEMITONES = "pitch_semitones"
+        private const val KEY_PITCH_PRESERVATION = "pitch_preservation_enabled"
 
         @Volatile
         private var instance: AudioPlayerManager? = null
@@ -138,14 +141,27 @@ class AudioPlayerManager(private val context: Context) {
     private val _spatialAudioReverb = MutableStateFlow(sharedPrefs.getFloat(KEY_SPATIAL_AUDIO_REVERB, 0.22f))
     val spatialAudioReverb: StateFlow<Float> = _spatialAudioReverb.asStateFlow()
 
+    // Velocidad y Afinación / Tono Independiente C++ (Oboe Exclusivo)
+    private val _playbackSpeed = MutableStateFlow(sharedPrefs.getFloat(KEY_PLAYBACK_SPEED, 1.0f))
+    val playbackSpeed: StateFlow<Float> = _playbackSpeed.asStateFlow()
+
+    private val _pitchSemitones = MutableStateFlow(sharedPrefs.getFloat(KEY_PITCH_SEMITONES, 0.0f))
+    val pitchSemitones: StateFlow<Float> = _pitchSemitones.asStateFlow()
+
+    private val _isPitchPreservationEnabled = MutableStateFlow(sharedPrefs.getBoolean(KEY_PITCH_PRESERVATION, true))
+    val isPitchPreservationEnabled: StateFlow<Boolean> = _isPitchPreservationEnabled.asStateFlow()
+
     init {
-        // Inicializar Oboe y sincronizar ecualizador y audio espacial
+        // Inicializar Oboe y sincronizar ecualizador, audio espacial, velocidad y tono
         if (OboeAudioBridge.isNativeReady()) {
             OboeAudioBridge.nativeInit()
             OboeAudioBridge.setSpatialAudioEnabledSafe(_isSpatialAudioEnabled.value)
             OboeAudioBridge.setSpatialAudioSpeedSafe(_spatialAudioSpeed.value)
             OboeAudioBridge.setSpatialAudioDepthSafe(_spatialAudioDepth.value)
             OboeAudioBridge.setSpatialAudioReverbSafe(_spatialAudioReverb.value)
+            OboeAudioBridge.setPlaybackSpeedSafe(_playbackSpeed.value)
+            OboeAudioBridge.setPitchSemitonesSafe(_pitchSemitones.value)
+            OboeAudioBridge.setPitchPreservationEnabledSafe(_isPitchPreservationEnabled.value)
         }
         equalizerController.initialize()
 
@@ -256,6 +272,43 @@ class AudioPlayerManager(private val context: Context) {
         OboeAudioBridge.setSpatialAudioReverbSafe(clamped)
     }
 
+    // Funciones de Velocidad y Afinación / Tono Independiente (C++ Oboe Exclusivo)
+    fun setPlaybackSpeed(speed: Float) {
+        val clamped = speed.coerceIn(0.5f, 2.0f)
+        _playbackSpeed.value = clamped
+        sharedPrefs.edit().putFloat(KEY_PLAYBACK_SPEED, clamped).apply()
+        OboeAudioBridge.setPlaybackSpeedSafe(clamped)
+        Log.i(TAG, "Velocidad de reproducción configurada: ${clamped}x")
+    }
+
+    fun setPitchSemitones(semitones: Float) {
+        val clamped = semitones.coerceIn(-6.0f, 6.0f)
+        _pitchSemitones.value = clamped
+        sharedPrefs.edit().putFloat(KEY_PITCH_SEMITONES, clamped).apply()
+        OboeAudioBridge.setPitchSemitonesSafe(clamped)
+        Log.i(TAG, "Afinación de tono configurada: $clamped semitonos")
+    }
+
+    fun setPitchPreservationEnabled(enabled: Boolean) {
+        _isPitchPreservationEnabled.value = enabled
+        sharedPrefs.edit().putBoolean(KEY_PITCH_PRESERVATION, enabled).apply()
+        OboeAudioBridge.setPitchPreservationEnabledSafe(enabled)
+        Log.i(TAG, "Preservación natural de tono (WSOLA): $enabled")
+    }
+
+    fun resetSpeedAndPitch() {
+        _playbackSpeed.value = 1.0f
+        _pitchSemitones.value = 0.0f
+        _isPitchPreservationEnabled.value = true
+        sharedPrefs.edit()
+            .putFloat(KEY_PLAYBACK_SPEED, 1.0f)
+            .putFloat(KEY_PITCH_SEMITONES, 0.0f)
+            .putBoolean(KEY_PITCH_PRESERVATION, true)
+            .apply()
+        OboeAudioBridge.resetSpeedAndPitchSafe()
+        Log.i(TAG, "Velocidad y tono restablecidos a valores originales")
+    }
+
     // Funciones del Temporizador de Sueño (Sleep Timer)
     fun startSleepTimer(minutes: Int) = sleepTimerManager.startTimer(minutes)
     fun startEndOfTrackSleepTimer() = sleepTimerManager.startEndOfTrackTimer()
@@ -274,11 +327,9 @@ class AudioPlayerManager(private val context: Context) {
     fun startBackgroundService() {
         try {
             val intent = Intent(context, RitmoMediaSessionService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
-            }
+            // En Android 14+, MediaSessionService maneja internamente su ciclo de vida y promoción
+            // a foreground mediante Media3. Usar startService evita ForegroundServiceDidNotStartInTimeException.
+            context.startService(intent)
         } catch (e: Exception) {
             Log.e(TAG, "No se pudo iniciar el servicio MediaSessionService", e)
         }
@@ -382,6 +433,9 @@ class AudioPlayerManager(private val context: Context) {
                     OboeAudioBridge.nativeInit()
                     val loaded = OboeAudioBridge.nativeLoadFile(track.filePath)
                     if (loaded) {
+                        OboeAudioBridge.setPlaybackSpeedSafe(_playbackSpeed.value)
+                        OboeAudioBridge.setPitchSemitonesSafe(_pitchSemitones.value)
+                        OboeAudioBridge.setPitchPreservationEnabledSafe(_isPitchPreservationEnabled.value)
                         OboeAudioBridge.nativePlay()
                         withContext(Dispatchers.Main) {
                             // En modo Oboe, preparar ExoPlayer en silencio con los metadatos de la pista
@@ -422,13 +476,17 @@ class AudioPlayerManager(private val context: Context) {
     private fun startPlaybackService() {
         try {
             val serviceIntent = Intent(context, RitmoMediaSessionService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(serviceIntent)
-            } else {
-                context.startService(serviceIntent)
-            }
+            // Se utiliza startService() estándar: MediaSessionService de Media3 se auto-promueve
+            // a Foreground Service internamente cuando detecta reproducción activa y notificación lista,
+            // previniendo ForegroundServiceDidNotStartInTimeException en Android 14.
+            context.startService(serviceIntent)
         } catch (e: Exception) {
             Log.e(TAG, "No se pudo iniciar RitmoMediaSessionService", e)
+            DebugLogManager.log(
+                tag = "MediaSessionService",
+                message = "Fallo al iniciar servicio: ${e.message}",
+                level = DebugLogLevel.WARN
+            )
         }
     }
 

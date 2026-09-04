@@ -94,6 +94,51 @@ object OboeAudioBridge {
         try { nativeGetSpatialAudioReverb() } catch (_: Throwable) { 0.22f }
     } else 0.22f
 
+    // Control de Velocidad y Afinación / Tono Independiente (C++ Oboe Exclusivo)
+    external fun nativeSetPlaybackSpeed(speed: Float)
+    external fun nativeGetPlaybackSpeed(): Float
+    external fun nativeSetPitchSemitones(semitones: Float)
+    external fun nativeGetPitchSemitones(): Float
+    external fun nativeSetPitchPreservationEnabled(enabled: Boolean)
+    external fun nativeIsPitchPreservationEnabled(): Boolean
+    external fun nativeResetSpeedAndPitch()
+
+    fun setPlaybackSpeedSafe(speed: Float) {
+        if (isLibraryLoaded) {
+            try { nativeSetPlaybackSpeed(speed) } catch (_: Throwable) {}
+        }
+    }
+
+    fun getPlaybackSpeedSafe(): Float = if (isLibraryLoaded) {
+        try { nativeGetPlaybackSpeed() } catch (_: Throwable) { 1.0f }
+    } else 1.0f
+
+    fun setPitchSemitonesSafe(semitones: Float) {
+        if (isLibraryLoaded) {
+            try { nativeSetPitchSemitones(semitones) } catch (_: Throwable) {}
+        }
+    }
+
+    fun getPitchSemitonesSafe(): Float = if (isLibraryLoaded) {
+        try { nativeGetPitchSemitones() } catch (_: Throwable) { 0.0f }
+    } else 0.0f
+
+    fun setPitchPreservationEnabledSafe(enabled: Boolean) {
+        if (isLibraryLoaded) {
+            try { nativeSetPitchPreservationEnabled(enabled) } catch (_: Throwable) {}
+        }
+    }
+
+    fun isPitchPreservationEnabledSafe(): Boolean = if (isLibraryLoaded) {
+        try { nativeIsPitchPreservationEnabled() } catch (_: Throwable) { true }
+    } else true
+
+    fun resetSpeedAndPitchSafe() {
+        if (isLibraryLoaded) {
+            try { nativeResetSpeedAndPitch() } catch (_: Throwable) {}
+        }
+    }
+
     // Procesamiento PCM para Media3 / ExoPlayer (Filtros Biquad IIR en C++)
     external fun nativeMedia3ProcessDirect(
         byteBuffer: ByteBuffer,

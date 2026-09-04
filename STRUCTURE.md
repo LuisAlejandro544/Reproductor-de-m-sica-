@@ -86,6 +86,8 @@ Este documento detalla la arquitectura de software, la organización de director
 │           │   ├── audio_decoder.cpp # Decodificador asíncrono con AMediaExtractor y gestión de búfers PCM
 │           │   ├── equalizer.h       # Filtros Biquad IIR Transposed Direct Form II (10 bandas)
 │           │   ├── spatial_audio.h   # Algoritmo de paneo binaural y convolución 360° / Efecto 8D
+│           │   ├── time_pitch_processor.h # Algoritmo WSOLA y remuestreo cúbico Hermite para velocidad/afinación
+│           │   ├── time_pitch_processor.cpp # Procesamiento PCM muestra a muestra para tempo y semitonos C++
 │           │   ├── native_audio.h    # Cabecera de OboeAudioPlayer con delegación hacia AudioDecoder
 │           │   ├── native_audio.cpp  # Implementación de audio Oboe, DSP y diagnóstico (error codes crudos)
 │           │   └── native_bridge.cpp # JNI exports de C++ y puente hacia funciones C-ABI de Rust
@@ -163,6 +165,7 @@ Este documento detalla la arquitectura de software, la organización de director
 │           │   │   │   ├── FullPlayerView.kt # Reproductor completo modularizado
 │           │   │   │   ├── LyricsView.kt     # Visualizador de letras con autodesplazamiento y seek interactivo
 │           │   │   │   ├── MiniPlayer.kt
+│           │   │   │   ├── PlaybackSpeedPitchModal.kt # Modal táctil de control de velocidad y afinación C++ WSOLA
 │           │   │   │   ├── RawErrorDialog.kt # Alerta emergente ante errores numéricos crudos
 │           │   │   │   ├── RoomDatabaseInspectorModal.kt
 │           │   │   │   ├── SleepTimerModal.kt
@@ -206,7 +209,20 @@ Este documento detalla la arquitectura de software, la organización de director
 - `nativeGetAudioDeviceInfo()`: Información del hardware de audio activo (`AAudio`/`OpenSL ES`).
 - `nativeGetStreamStatsJson()`: Estadísticas de frames leídos, xruns y estado del stream.
 
-### 3. Decodificación Nativa C++ con AMediaCodec (`AudioDecoder`)
+### 3. Procesamiento DSP de Audio Espacial 360° / 8D en C++ (`SpatialAudio8DProcessor`)
+- `nativeSetSpatialAudioEnabled(boolean)` / `nativeIsSpatialAudioEnabled()`: Conmuta en tiempo real el efecto binaural tanto en el motor Oboe C++ como en el procesador `Media3EqualizerAudioProcessor`.
+- `nativeSetSpatialAudioSpeed(float)` / `nativeGetSpatialAudioSpeed()`: Configura la velocidad de rotación azimutal (Hz, de 0.01 Hz a 0.50 Hz).
+- `nativeSetSpatialAudioDepth(float)` / `nativeGetSpatialAudioDepth()`: Controla la amplitud espacial, balance ILD y retardo ITD (de 0.10 a 1.00).
+- `nativeSetSpatialAudioReverb(float)` / `nativeGetSpatialAudioReverb()`: Ajusta la micro-reverberación acústica binaural multitap (de 0.00 a 0.80).
+- **Procesamiento Dual:** En Oboe se procesa directamente en el callback nativo `onAudioReady`. En Media3 se ejecuta en muestras PCM muestra a muestra a través de `nativeMedia3ProcessDirect` / `nativeMedia3ProcessArray` asegurando soporte universal del efecto 8D.
+
+### 4. Procesamiento DSP de Velocidad y Afinación en C++ WSOLA (`TimePitchProcessor`)
+- `nativeSetPlaybackSpeed(float)` / `nativeGetPlaybackSpeed()`: Ajusta en tiempo real la velocidad de reproducción de 0.5x a 2.0x preservando el tono musical y vocal sin distorsión (exclusivo motor Oboe C++).
+- `nativeSetPitchSemitones(float)` / `nativeGetPitchSemitones()`: Modifica el tono de afinación musical de -6.0 a +6.0 semitonos independientemente del tiempo de reproducción.
+- `nativeSetPitchPreservationEnabled(boolean)` / `nativeIsPitchPreservationEnabled()`: Conmuta entre preservación de tono estricta (WSOLA puro) y modo alternativo donde la velocidad desplaza la afinación.
+- `nativeResetSpeedAndPitch()`: Restablece de forma atómica la velocidad a 1.0x, afinación a 0.0 semitonos y preservación de tono activada.
+
+### 5. Decodificación Nativa C++ con AMediaCodec (`AudioDecoder`)
 - `audio_decoder.cpp`: Extrae pistas de audio comprimidas (`AMediaExtractor`) y decodifica a muestras PCM en coma flotante de 32 bits a través de `AMediaCodec`.
 - Ejecución asíncrona mediante hilo en segundo plano (`std::thread`), evitando bloqueos en el hilo de reproducción de audio y garantizando búfers continuos libres de xruns.
 

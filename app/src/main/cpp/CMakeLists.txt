@@ -11,6 +11,7 @@ add_library(ritmo_native SHARED
     audio_decoder.cpp
     native_audio.cpp
     native_bridge.cpp
+    time_pitch_processor.cpp
 )
 
 target_include_directories(ritmo_native PRIVATE

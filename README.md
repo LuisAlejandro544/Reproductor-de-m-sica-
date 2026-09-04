@@ -30,10 +30,16 @@ La aplicación está concebida para su distribución independiente en tiendas de
 - **UI Descompuesta en Submódulos:** `MainMusicScreen` y `SettingsScreen` divididas en componentes especializados reutilizables bajo `ui.main` y `ui.settings`.
 - **Crate de Rust Modularizado:** `ritmo_rust` segmentado en módulos independientes (`models.rs`, `id3.rs`, `vorbis.rs`, `flac.rs`, `ape.rs`, `mp4.rs`, `writer.rs`, `jni_bridge.rs`) para facilitar su mantenimiento y extensión.
 
-### 4. 🎼 Doble Motor de Audio y Ecualizador DSP de 10 Bandas en C++
+### 4. 🎼 Doble Motor de Audio, Ecualizador DSP de 10 Bandas, Audio Espacial 8D y Control de Velocidad/Tono C++
 - **Motor Nativo Oboe C++:** Acceso directo a `AAudio` y `OpenSL ES` para ultra baja latencia y procesamiento en tiempo real dentro del callback de audio.
-- **Motor Estándar ExoPlayer / Media3:** Motor de referencia para compatibilidad exhaustiva de códecs y reproducción continua.
+- **Motor Estándar ExoPlayer / Media3:** Motor de referencia para compatibilidad exhaustiva de códecs y reproducción continua en segundo plano.
 - **Ecualizador de 10 Bandas Unificado:** Filtros Biquad IIR Transposed Direct Form II calculados muestra a muestra en C++ (31 Hz a 16 kHz, -12 dB a +12 dB) compartidos entre Oboe y Media3 (mediante `Media3EqualizerAudioProcessor`), garantizando idéntica respuesta acústica.
+- **Audio Espacial 360° / 8D Nativo Integrado al 100%:** Procesador DSP binaural de alta fidelidad (`SpatialAudio8DProcessor` en C++) conectado tanto a Oboe como a Media3. Modela órbita azimutal continua tridimensional (velocidad Hz configurable), Diferencia de Nivel Interaural (ILD) con atenuación de agudos posterior, Diferencia de Tiempo Interaural (ITD) con retardo de sub-muestra interpolado y micro-reverberación acústica de sala multitap con visualizador orbital táctil en tiempo real.
+- **Control Independiente de Velocidad y Afinación en C++ (Exclusivo Oboe):** Procesador DSP nativo (`TimePitchProcessor` en C++20) implementado con el algoritmo **WSOLA** (*Waveform Similarity Overlap-Add*) y remuestreo cúbico Hermite:
+  - **Aceleración/Desaceleración Natural (0.5x a 2.0x):** Permite aumentar o disminuir el tempo de la música o de la voz preservando con total fidelidad el tono original, evitando artefactos o distorsiones antinaturales.
+  - **Modulación Precisa de Tono (-6.0 a +6.0 semitonos):** Permite cambiar el tono musical o afinar a frecuencias sagradas (como 432 Hz) de forma independiente a la velocidad.
+  - **Preajustes Audiófilos y Creativos:** Botones rápidos para 0.75x, 1.0x, 1.25x, 1.5x, afinación 432 Hz, Nightcore (+20% velocidad y tono elevado) y Slowed + Reverb (-20% velocidad y tono profundo).
+  - **Modal Táctil Dedicado (`PlaybackSpeedPitchModal`):** Deslizadores de 48dp, visualizador de forma de onda senoidal en tiempo real y conmutador rápido para cambiar a Oboe si se encuentra en ExoPlayer.
 
 ### 4. 🗄️ Almacenamiento Modular Desacoplado & Carátulas WebP Sin Pérdida
 - **Estructura Modular en Almacenamiento Privado:**
@@ -73,10 +79,11 @@ La aplicación está concebida para su distribución independiente en tiendas de
 | **Persistencia Local** | Room Database 2.7+ (KSP) y Archivos JSON modulares por pista |
 | **Núcleo de Metadatos y Tags** | Rust 2021 (`ritmo_rust` con `id3`, `metaflac`, `lofty`, `jni`), C-ABI |
 | **Motor de Audio Nativo** | C++20, Google Oboe (AAudio / OpenSL ES), CMake 3.22+, Android NDK r26b |
-| **Procesamiento DSP** | Filtros Biquad IIR en C++ integrados en Oboe y Media3 (AudioProcessor) |
+| **Procesamiento DSP** | Filtros Biquad IIR de 10 bandas, Audio Espacial 8D y Procesador WSOLA de Velocidad/Tono en C++ |
 | **Motor Estándar** | AndroidX Media3 / ExoPlayer 1.5+ |
 | **Imágenes y Carátulas** | WebP Lossless, Coil Compose, Android Photo Picker |
 | **Depuración y Diagnóstico** | `DebugLogManager` en memoria, `DebugConsoleModal`, códigos de error crudos |
+| **Distribución e Independencia** | 100% Offline, sin dependencias de Google Play Services (listo para Uptodown) |
 | **Compilación y CI/CD** | Gradle 9.3+ Kotlin DSL, GitHub Actions con `cargo fetch` |
 
 ---
